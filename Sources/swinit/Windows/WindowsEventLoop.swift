@@ -10,8 +10,8 @@ public class WindowEventLoop: IEventLoop {
     self.controlFlow = controlFlow
   }
 
-  public func createWindow(title: String) -> Win32Window {
-    Win32Window(eventLoop: self, title: title)
+  public func createWindow(title: String) -> WindowsWindow {
+    WindowsWindow(eventLoop: self, title: title)
   }
 
   public func run(_ responder: some Responder) {

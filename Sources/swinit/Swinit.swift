@@ -1,2 +1,2 @@
-public typealias Window = Win32Window
+public typealias Window = WindowsWindow
 public typealias EventLoop = WindowEventLoop

@@ -2,7 +2,7 @@ import CWin32
 import Foundation
 import WinSDK
 
-public class Win32Window: Identifiable {
+public class WindowsWindow: Identifiable {
   public typealias ID = WindowId
   public let id: WindowId = WindowId()
 
@@ -22,6 +22,31 @@ public class Win32Window: Identifiable {
     }
   }
 
+  public var drawUnderTitleBar: Bool = false {
+    didSet {
+      var margins = MARGINS(
+        cxLeftWidth: -1,
+        cxRightWidth: -1,
+        cyTopHeight: drawUnderTitleBar ? -1 : 25,
+        cyBottomHeight: -1
+      )
+      _ = DwmExtendFrameIntoClientArea(self.handle, &margins)
+      // // This removes the black background and lets Mica show throughs
+    }
+  }
+
+  public var backdropStyle: WindowsBackdropStyle = .auto {
+    didSet {
+      DwmSetWindowAttribute(
+        handle,
+        numericCast(DWMWA_SYSTEMBACKDROP_TYPE.rawValue),
+        UnsafeRawPointer(bitPattern: Int(backdropStyle.underlying.rawValue)),
+        UInt32(MemoryLayout<UInt32>.size)
+      )
+    }
+
+  }
+
   init(eventLoop: WindowEventLoop, title: String, windowClass: String = "swinit_window") {
     self.eventLoop = eventLoop
 
@@ -37,11 +62,14 @@ public class Win32Window: Identifiable {
       cbWndExtra: 0,
       hInstance: instance,
       hIcon: nil,
-      hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),
-      hbrBackground: nil,  // COLOR_WINDOWFRAME as! HBRUSH
+      hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),  // IDC_ARROW
+      // hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
+      hbrBackground: UnsafeMutablePointer(bitPattern: 0),
       lpszMenuName: nil,
       lpszClassName: _windowClass.lpcwstr
     )
+
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
 
     // ah, i love winapi
     guard RegisterClassW(&windowClass) != 0 else {
@@ -49,14 +77,23 @@ public class Win32Window: Identifiable {
     }
     // throw self pointer to createWindowsSomeshi
 
-    // think of this as the os (windows) have 1 references to this
-    let selfPtr = Unmanaged.passRetained(self).toOpaque()
+    // think of this as the os (windows) have an unowned references to this
+    let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
     let hwnd = CreateWindowExW(
-      0, _windowClass.lpcwstr, _title.lpcwstr, UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
+      0, 
+      _windowClass.lpcwstr,
+      _title.lpcwstr,
+      UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT,
-      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nil, nil,
-      instance, selfPtr)
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      nil,
+      nil,
+      instance,
+      selfPtr
+    )
 
     self.handle = hwnd!
   }
@@ -119,27 +156,30 @@ public class Win32Window: Identifiable {
 
     case UINT(WM_PAINT):
       eventLoop.sendWindowEvent(.redrawRequested, to: id)
-      ValidateRect(hWnd, nil)
       return 0
 
     default:
       return DefWindowProcW(hWnd, message, wParam, lParam)
     }
   }
+
+  deinit {
+    DestroyWindow(handle)
+  }
 }
 
-extension Win32Window: IWindow {
-  func requestRedraw() {
+extension WindowsWindow: IWindow {
+  public func requestRedraw() {
     InvalidateRect(handle, nil, false)
   }
 
-  func focus() {
+  public func focus() {
     SetForegroundWindow(handle)
     SetFocus(handle)
   }
 }
 
-private func getWindow(_ hWnd: HWND) -> Unmanaged<Win32Window>? {
+private func getWindow(_ hWnd: HWND) -> Unmanaged<WindowsWindow>? {
   let userData = UInt(GetWindowLongPtrW(hWnd, Int32(GWLP_USERDATA)))
   guard let ptr = UnsafeRawPointer(bitPattern: userData) else {
     return nil
