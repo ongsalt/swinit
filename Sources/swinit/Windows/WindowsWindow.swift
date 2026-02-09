@@ -44,7 +44,6 @@ public class WindowsWindow: Identifiable {
         UInt32(MemoryLayout<UInt32>.size)
       )
     }
-
   }
 
   init(eventLoop: WindowEventLoop, title: String, windowClass: String = "swinit_window") {
@@ -63,8 +62,8 @@ public class WindowsWindow: Identifiable {
       hInstance: instance,
       hIcon: nil,
       hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),  // IDC_ARROW
-      // hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
-      hbrBackground: UnsafeMutablePointer(bitPattern: 0),
+      hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
+      // hbrBackground: UnsafeMutablePointer(bitPattern: 0),
       lpszMenuName: nil,
       lpszClassName: _windowClass.lpcwstr
     )
@@ -156,6 +155,7 @@ public class WindowsWindow: Identifiable {
 
     case UINT(WM_PAINT):
       eventLoop.sendWindowEvent(.redrawRequested, to: id)
+      ValidateRect(handle, nil)
       return 0
 
     default:
