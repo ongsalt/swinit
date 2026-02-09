@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:swinit}",
+      "name": "Debug SwinitTest",
+      "target": "SwinitTest",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug SwinitTest"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:swinit}",
+      "name": "Release SwinitTest",
+      "target": "SwinitTest",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release SwinitTest"
+    }
+  ]
+}
