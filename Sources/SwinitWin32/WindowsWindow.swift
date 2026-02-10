@@ -1,6 +1,8 @@
 import CWin32
 import Foundation
 import WinSDK
+import SwinitCommon
+
 
 public class WindowsWindow: Identifiable {
   public typealias ID = WindowId

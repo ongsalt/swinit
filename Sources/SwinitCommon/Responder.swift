@@ -1,5 +1,6 @@
 public protocol Responder {
     associatedtype UserEvent = Void
+    associatedtype EventLoop: IEventLoop
     
     // Required methods
     func resumed(eventLoop: EventLoop)

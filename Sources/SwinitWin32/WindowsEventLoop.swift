@@ -1,5 +1,6 @@
 import Foundation
 import WinSDK
+import SwinitCommon
 
 public class WindowEventLoop: IEventLoop {
   let controlFlow: ControlFlow

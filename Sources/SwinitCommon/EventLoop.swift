@@ -4,7 +4,7 @@ public enum ControlFlow {
   // case waitUntil(ContinuousClock.Instant)
 }
 
-protocol IEventLoop {
+public protocol IEventLoop {
   func sendWindowEvent(_ event: WindowEvent, to: WindowId)
   // func createProxy() -> IEventLoopProxy
   func run(_ handler: some Responder)

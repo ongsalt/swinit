@@ -2,20 +2,19 @@
 // https://docs.swift.org/swift-book
 
 import Foundation
-import WinSDK
-import swinit
+import Swinit
 
 class OurResponder: Responder {
   var window: Window? = nil
 
-  func resumed(eventLoop: swinit.EventLoop) {
+  func resumed(eventLoop: Swinit.EventLoop) {
     window = eventLoop.createWindow(title: "nahhhh")
-    window?.drawUnderTitleBar = true
-    window?.backdropStyle = .transient
+    // window?.drawUnderTitleBar = true
+    // window?.backdropStyle = .transient
   }
 
   func windowEvent(
-    eventLoop: swinit.EventLoop, windowId: swinit.WindowId, event: swinit.WindowEvent
+    eventLoop: Swinit.EventLoop, windowId: Swinit.WindowId, event: Swinit.WindowEvent
   ) {
     switch event {
     case .redrawRequested:
@@ -33,8 +32,12 @@ class OurResponder: Responder {
 @main
 public struct Main {
   public static func main() {
-    let eventLoop = EventLoop(controlFlow: .poll)
+    // EventLoop.main.ensure(controlFlow: .poll)
 
-    eventLoop.run(OurResponder())
+    EventLoop.main.run()
+
+    // let eventLoop = EventLoop(controlFlow: .poll)
+
+    // eventLoop.run(OurResponder())
   }
 }
