@@ -5,6 +5,8 @@ public final class WaylandEventLoop {
     let mode: ControlMode
     let wlDisplay: Display
 
+    var responder: (any Responder<WaylandEventLoop>)? = nil
+
     private(set) var shouldRun: Bool = false
 
     public init?(mode: ControlMode = .swift) {
@@ -45,8 +47,9 @@ public final class WaylandEventLoop {
 }
 
 extension WaylandEventLoop: IEventLoop {
-  public func run(_ handler: some Responder)  {
-        // TODO: check which platform need this
+    public func run<R>(_ responder: R) where WaylandEventLoop == R.EventLoop, R : SwinitCommon.Responder {
+        self.responder = responder
+        responder.resumed(eventLoop: self)
 
         switch mode {
         case .poll:
@@ -62,10 +65,7 @@ extension WaylandEventLoop: IEventLoop {
 
     // we should just stop doing responder and just do event enum with callback
     public func sendWindowEvent(_ event: WindowEvent, to windowId: WindowId) {
-        // guard let r = self.responder else {
-        //     return
-        // }
-        // let s = r as 
+        self.responder?.windowEvent(eventLoop: self, windowId: windowId, event: event)
     }
 
     // or shuold this be global

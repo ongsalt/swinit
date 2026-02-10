@@ -9,7 +9,7 @@ public protocol IEventLoop {
 
   func sendWindowEvent(_ event: WindowEvent, to: WindowId)
   // func createProxy() -> IEventLoopProxy
-  func run(_ handler: some Responder) 
+  func run<R>(_ handler: R) where R: Responder, R.EventLoop == Self
 
   func createWindow(title: String) -> Window
 }

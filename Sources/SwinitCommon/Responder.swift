@@ -1,10 +1,10 @@
-public protocol Responder {
+public protocol Responder<EventLoop> {
     // associatedtype UserEvent = Void
     associatedtype EventLoop: IEventLoop
-    
+
     // Required methods
     func resumed(eventLoop: EventLoop)
-    func windowEvent(eventLoop: EventLoop, windowId: WindowId, event: WindowEvent)    
+    func windowEvent(eventLoop: EventLoop, windowId: WindowId, event: WindowEvent)
 }
 
 extension Responder {
