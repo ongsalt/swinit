@@ -39,12 +39,9 @@ func testFetch() async {
     print(res)
 }
 
+// Usages
 class EventLoop {
-    init(mode: ControlMode) {
+    init(mode: ControlMode) {}
 
-    }
-
-    func run() {
-        
-    }
+    func run(responder: some Responder) {}
 }

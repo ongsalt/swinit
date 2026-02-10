@@ -4,49 +4,43 @@
 import Foundation
 import Swinit
 
-// class OurResponder: Responder {
-//   var window: Window? = nil
+class OurResponder: Swinit.Responder {
+  typealias EventLoop = Swinit.EventLoop
 
-//   func resumed(eventLoop: Swinit.EventLoop) {
-//     window = eventLoop.createWindow(title: "nahhhh")
-//     // window?.drawUnderTitleBar = true
-//     // window?.backdropStyle = .transient
-//   }
+  var window: Window? = nil
 
-//   func windowEvent(
-//     eventLoop: Swinit.EventLoop, windowId: Swinit.WindowId, event: Swinit.WindowEvent
-//   ) {
-//     switch event {
-//     case .redrawRequested:
-//       print("nah")
+  func resumed(eventLoop: EventLoop) {
+    window = eventLoop.createWindow(title: "nahhhh")
+  }
 
-//     case .closeRequested:
-//       self.window = nil
+  func windowEvent(
+    eventLoop: EventLoop, windowId: Swinit.WindowId, event: Swinit.WindowEvent
+  ) {
+    switch event {
+    case .redrawRequested:
+      print("nah")
 
-//     default:
-//       print(event)
-//     }
-//   }
-// }
+    case .closeRequested:
+      self.window = nil
+
+    default:
+      print(event)
+    }
+  }
+}
 
 @main
 public struct Main {
   public static func main() {
-    // // EventLoop.main.ensure(controlFlow: .poll)
+    let eventLoop = EventLoop()!
 
-    // EventLoop.main.run()
+    Task {
+      while !Task.isCancelled {
+        try await Task.sleep(for: .seconds(1))
+        print("hi")
+      }
+    }
 
-    // // let eventLoop = EventLoop(controlFlow: .poll)
-
-    // // eventLoop.run(OurResponder())
-    // Task {
-    //   while !Task.isCancelled {
-    //     try await Task.sleep(for: .seconds(1))
-    //     print("hi")
-    //   }
-    // }
-    print(ProcessInfo.processInfo.processIdentifier)
-
-    RunLoop.main.run()
+    eventLoop.run(OurResponder())
   }
 }

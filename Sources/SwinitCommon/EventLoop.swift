@@ -5,9 +5,13 @@ public enum ControlFlow {
 }
 
 public protocol IEventLoop {
+  associatedtype Window: IWindow
+
   func sendWindowEvent(_ event: WindowEvent, to: WindowId)
   // func createProxy() -> IEventLoopProxy
-  func run(_ handler: some Responder) -> Never 
+  func run(_ handler: some Responder) 
+
+  func createWindow(title: String) -> Window
 }
 
 // The window is closed when dropped.

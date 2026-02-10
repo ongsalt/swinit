@@ -97,7 +97,6 @@ public class Display {
     // this is ass
     public func monitorEvents(
         queue: DispatchQueue = .main,
-        callback: (() -> Void)? = nil
     ) {
         guard self.source == nil else { return }
 
@@ -120,11 +119,6 @@ public class Display {
             self.flush()
             // source.resume()
         }
-
-        // while self.prepareRead() != 0 {
-        //     dispatchPending()
-        // }
-        // flush()
 
         source.resume()
 
