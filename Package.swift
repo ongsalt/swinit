@@ -4,12 +4,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "swinit",
+    name: "Swinit",
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "swinit",
-            targets: ["swinit"]
+            name: "Swinit",
+            targets: ["Swinit"]
         ),
     ],
     targets: [
@@ -18,20 +18,26 @@ let package = Package(
         .target(
             name: "CWin32"
         ),
-
         .target(
-            name: "swinit",
+            name: "SwinitWin32",
             dependencies: [
                 "CWin32"
             ]
         ),
+
+        .target(
+            name: "Swinit",
+            dependencies: [
+                .byName(name: "SwinitWin32", condition: .when(platforms: [.windows]))
+            ]
+        ),
         .executableTarget(
             name: "SwinitTest",
-            dependencies: ["swinit"]
+            dependencies: ["Swinit"]
         ),
         .testTarget(
             name: "swinitTests",
-            dependencies: ["swinit"]
+            dependencies: ["Swinit"]
         ),
     ]
 )
