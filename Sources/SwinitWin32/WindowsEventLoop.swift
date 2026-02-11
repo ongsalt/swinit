@@ -1,13 +1,15 @@
 import Foundation
-import WinSDK
+
 import SwinitCommon
 
-public class WindowEventLoop: IEventLoop {
-  let controlFlow: ControlFlow
-  
-  var responder: (any Responder)? = nil
+import WinSDK
 
-  public init(controlFlow: ControlFlow = .wait) {
+public final class WindowEventLoop: IEventLoop {
+  let controlFlow: ControlFlow
+
+  var responder: (any Responder<WindowEventLoop>)? = nil
+
+  public init?(controlFlow: ControlFlow = .wait) {
     self.controlFlow = controlFlow
   }
 
@@ -15,22 +17,23 @@ public class WindowEventLoop: IEventLoop {
     WindowsWindow(eventLoop: self, title: title)
   }
 
-  public func run(_ responder: some Responder) {
+  public func run<R>(_ responder: R) where WindowEventLoop == R.EventLoop, R: SwinitCommon.Responder {
     self.responder = responder
-    
+
     // TODO: check which platform need this
-    responder.resumed(eventLoop: self) 
-    let result = switch controlFlow {
+    responder.resumed(eventLoop: self)
+    let result =
+      switch controlFlow {
       case .wait:
         runWaitingLoop()
       case .poll:
         runPollingLoop()
       default:
         runWaitingLoop()
-    }
+      }
   }
 
-  func sendWindowEvent(_ event: WindowEvent, to windowId: WindowId) {
+  public func sendWindowEvent(_ event: WindowEvent, to windowId: WindowId) {
     if self.responder == nil {
       fatalError("self.responder is nil: \(event) \(windowId)")
     }

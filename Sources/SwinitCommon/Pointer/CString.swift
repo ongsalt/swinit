@@ -1,3 +1,4 @@
+#if canImport(Glibc)
 import Glibc
 
 public final class CString {
@@ -48,3 +49,5 @@ extension CString: ExpressibleByStringLiteral {
         self.init(value)
     }
 }
+
+#endif

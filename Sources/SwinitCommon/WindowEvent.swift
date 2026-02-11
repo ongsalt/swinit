@@ -1,6 +1,10 @@
 // Copied from winit
 
-public final class WindowId: Identifiable, Sendable {}
+// probably implementation private
+
+public final class WindowId: Identifiable, Sendable {
+  public init() {}
+}
 extension WindowId: Hashable {
   nonisolated public static func == (lhs: WindowId, rhs: WindowId) -> Bool {
     lhs.id == rhs.id
@@ -10,19 +14,19 @@ extension WindowId: Hashable {
     hasher.combine(id)
   }
 }
-
 public struct PhysicalSize<U> {
   var width: U
   var height: U
-}
 
+  public init(width: U, height: U) {
+    self.width = width
+    self.height = height
+  }
+}
 public typealias PhysicalPosition = SIMD2
-
-// probably implementation private
 public struct DeviceId: Equatable {
-
+  public init() {}
 }
-
 public enum WindowEvent {
   // case activationTokenDone(serial: AsyncRequestSerial, token: ActivationToken)
   case resized(PhysicalSize<UInt32>)
