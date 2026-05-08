@@ -11,6 +11,7 @@ public class WindowsWindow: Identifiable {
   public let id: WindowId = WindowId()
 
   public private(set) var handle: HWND! = nil
+  public private(set) var hInstance: HINSTANCE! = nil
   private unowned let eventLoop: WindowEventLoop
 
   private let _title: WinString
@@ -55,7 +56,7 @@ public class WindowsWindow: Identifiable {
   init(eventLoop: WindowEventLoop, title: String, windowClass: String = "swinit_window") {
     self.eventLoop = eventLoop
 
-    let instance = GetModuleHandleW(nil)!
+    self.hInstance = GetModuleHandleW(nil)!
     // why tf did i do that
     self._title = WinString(title)
     self._windowClass = WinString(windowClass)
@@ -65,7 +66,7 @@ public class WindowsWindow: Identifiable {
       lpfnWndProc: globalWndProc,
       cbClsExtra: 0,
       cbWndExtra: 0,
-      hInstance: instance,
+      hInstance: hInstance,
       hIcon: nil,
       hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),  // IDC_ARROW
       hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
@@ -86,7 +87,7 @@ public class WindowsWindow: Identifiable {
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
     let hwnd = CreateWindowExW(
-      UInt32(WS_EX_COMPOSITED),
+      0,  // UInt32(WS_EX_COMPOSITED),
       _windowClass.lpcwstr,
       _title.lpcwstr,
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
@@ -96,7 +97,7 @@ public class WindowsWindow: Identifiable {
       CW_USEDEFAULT,
       nil,
       nil,
-      instance,
+      hInstance,
       selfPtr
     )
 
@@ -159,11 +160,7 @@ public class WindowsWindow: Identifiable {
       eventLoop.sendWindowEvent(.cursorLeft(deviceId: deviceId), to: id)
       return 0
 
-    // case UINT(WM_PAINT):
-    //   eventLoop.sendWindowEvent(.redrawRequested, to: id)
-      // ValidateRect(handle, nil)
-    //   return 0
-
+    // no gdi
     case UINT(WM_ERASEBKGND):
       return 1
 
@@ -207,13 +204,12 @@ private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ l
     // print("whattt \(userData)")
     return DefWindowProcW(hWnd, message, wParam, lParam)
 
-  case UINT(WM_NCDESTROY):
-    // TODO: think about releasing this
-    // This should be called some where else
-    // let window = getWindow(hWnd!)!
-    // window.release()
-    PostQuitMessage(0)
-    return LRESULT(0)
+  // case UINT(WM_NCDESTROY):
+  //   // TODO: think about releasing this
+  //   // This should be called some where else
+  //   // let window = getWindow(hWnd!)!
+  //   // window.release()
+  //   return LRESULT(0)
 
   default:
     if let window = getWindow(hWnd!) {

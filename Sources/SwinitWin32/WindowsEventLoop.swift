@@ -9,7 +9,7 @@ public final class WindowEventLoop: IEventLoop {
 
   var responder: (any Responder<WindowEventLoop>)? = nil
 
-  public init?(controlFlow: ControlFlow = .wait) {
+  public init?(controlFlow: ControlFlow = .default) {
     self.controlFlow = controlFlow
   }
 
@@ -17,20 +17,25 @@ public final class WindowEventLoop: IEventLoop {
     WindowsWindow(eventLoop: self, title: title)
   }
 
-  public func run<R>(_ responder: R) where WindowEventLoop == R.EventLoop, R: SwinitCommon.Responder {
+  public func run<R>(_ responder: R)
+  where WindowEventLoop == R.EventLoop, R: SwinitCommon.Responder {
     self.responder = responder
 
     // TODO: check which platform need this
     responder.resumed(eventLoop: self)
     let result =
       switch controlFlow {
-      case .wait:
-        runWaitingLoop()
+      // case .swift:
+      //   runWaitingLoop()
       case .poll:
         runPollingLoop()
       default:
         runWaitingLoop()
       }
+  }
+
+  public func stop() {
+    PostQuitMessage(0)
   }
 
   public func sendWindowEvent(_ event: WindowEvent, to windowId: WindowId) {
@@ -40,10 +45,7 @@ public final class WindowEventLoop: IEventLoop {
     self.responder?.windowEvent(eventLoop: self, windowId: windowId, event: event)
   }
 
-  private func runLoopWithHeartbeatThread() {
-
-  }
-
+  // TODO: fix this. its not polling
   private func runPollingLoop() -> Int32 {
     var msg: MSG = MSG()
     var nExitCode: Int32 = EXIT_SUCCESS
@@ -83,7 +85,6 @@ public final class WindowEventLoop: IEventLoop {
     return nExitCode
   }
 
-  // its actually wait with extra step
   private func runWaitingLoop() -> Int32 {
     var msg: MSG = MSG()
     var nExitCode: Int32 = EXIT_SUCCESS

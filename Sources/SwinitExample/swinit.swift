@@ -1,7 +1,8 @@
 import Foundation
+
 import Swinit
 
-class OurResponder: Swinit.Responder {
+class Responder: Swinit.Responder {
   typealias EventLoop = Swinit.EventLoop
 
   var window: Window? = nil
@@ -9,9 +10,10 @@ class OurResponder: Swinit.Responder {
   func resumed(eventLoop: EventLoop) {
     window = eventLoop.createWindow(title: "nahhhh")
     #if canImport(SwinitWin32)
-    // window!.drawUnderTitleBar = true
-    window?.backdropStyle = .mica
-    #endif // canImport(SwinitWin32)
+      // window!.drawUnderTitleBar = true
+      window?.handle
+    // window?.backdropStyle = .mica
+    #endif  // canImport(SwinitWin32)
   }
 
   func windowEvent(
@@ -23,25 +25,26 @@ class OurResponder: Swinit.Responder {
 
     case .closeRequested:
       self.window = nil
+      eventLoop.stop()
 
     default:
       print(event)
     }
   }
 }
-
 @main
 public struct Main {
   public static func main() {
     let eventLoop = EventLoop()!
 
-    Task {
-      while !Task.isCancelled {
-        try await Task.sleep(for: .seconds(1))
-        print("hi")
-      }
-    }
+    // Task {
+    //   while !Task.isCancelled {
+    //     try await Task.sleep(for: .seconds(1))
+    //     print("hi")
+    //   }
+    // }
 
-    eventLoop.run(OurResponder())
+    let r = Responder()
+    eventLoop.run(r)
   }
 }

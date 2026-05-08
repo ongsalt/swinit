@@ -43,8 +43,9 @@ let package = Package(
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux]))
             ]
         ),
+        
         .executableTarget(
-            name: "SwinitTest",
+            name: "SwinitExample",
             dependencies: ["Swinit"]
         ),
         .testTarget(

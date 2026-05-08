@@ -1,4 +1,4 @@
-very much winit but swift
+winit but swift
 
 # planning
 
@@ -9,11 +9,11 @@ i will clean this up later
 
 ## Feature needed
 - input
-- fullscreen
 - request redraw
-- emulate runloop beforeIdle on windows like winit???
+- eventloop
 - focus
 - wayland csd decoration
+- fullscreen
 - pre_present_notify:
   Wayland - Schedules a frame callback to throttle
 
