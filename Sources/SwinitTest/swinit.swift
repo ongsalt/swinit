@@ -9,8 +9,9 @@ class OurResponder: Swinit.Responder {
   func resumed(eventLoop: EventLoop) {
     window = eventLoop.createWindow(title: "nahhhh")
     #if canImport(SwinitWin32)
-    window!.drawUnderTitleBar = true
-    #endif
+    // window!.drawUnderTitleBar = true
+    window?.backdropStyle = .mica
+    #endif // canImport(SwinitWin32)
   }
 
   func windowEvent(

@@ -1,24 +1,10 @@
 import CWin32
 
-public enum WindowsBackdropStyle {
+// from mica for everyone
+public enum WindowsBackdropStyle: UInt32 {
   case auto
   case none
-  case main
-  case transient
-  case tabbed
-
-  var underlying: DWM_SYSTEMBACKDROP_TYPE {
-    switch self {
-    case .auto:
-      DWMSBT_AUTO
-    case .none:
-      DWMSBT_NONE
-    case .main:
-      DWMSBT_MAINWINDOW
-    case .transient:
-      DWMSBT_TRANSIENTWINDOW
-    case .tabbed:
-      DWMSBT_TABBEDWINDOW
-    }
-  }
+  case mica
+  case acrylic
+  case micaAlt
 }

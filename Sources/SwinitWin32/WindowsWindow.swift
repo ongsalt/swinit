@@ -1,8 +1,10 @@
 import CWin32
+
 import Foundation
-import WinSDK
+
 import SwinitCommon
 
+import WinSDK
 
 public class WindowsWindow: Identifiable {
   public typealias ID = WindowId
@@ -39,10 +41,12 @@ public class WindowsWindow: Identifiable {
 
   public var backdropStyle: WindowsBackdropStyle = .auto {
     didSet {
+      self.drawUnderTitleBar = Bool(drawUnderTitleBar)
+      var pref = backdropStyle.rawValue
       DwmSetWindowAttribute(
         handle,
-        numericCast(DWMWA_SYSTEMBACKDROP_TYPE.rawValue),
-        UnsafeRawPointer(bitPattern: Int(backdropStyle.underlying.rawValue)),
+        38,  // DWMWA_SYSTEMBACKDROP_TYPE.rawValue
+        &pref,
         UInt32(MemoryLayout<UInt32>.size)
       )
     }
@@ -82,7 +86,7 @@ public class WindowsWindow: Identifiable {
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
     let hwnd = CreateWindowExW(
-      0, 
+      UInt32(WS_EX_COMPOSITED),
       _windowClass.lpcwstr,
       _title.lpcwstr,
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
@@ -155,10 +159,13 @@ public class WindowsWindow: Identifiable {
       eventLoop.sendWindowEvent(.cursorLeft(deviceId: deviceId), to: id)
       return 0
 
-    case UINT(WM_PAINT):
-      eventLoop.sendWindowEvent(.redrawRequested, to: id)
-      ValidateRect(handle, nil)
-      return 0
+    // case UINT(WM_PAINT):
+    //   eventLoop.sendWindowEvent(.redrawRequested, to: id)
+      // ValidateRect(handle, nil)
+    //   return 0
+
+    case UINT(WM_ERASEBKGND):
+      return 1
 
     default:
       return DefWindowProcW(hWnd, message, wParam, lParam)
@@ -169,7 +176,6 @@ public class WindowsWindow: Identifiable {
     DestroyWindow(handle)
   }
 }
-
 extension WindowsWindow: IWindow {
   public func requestRedraw() {
     InvalidateRect(handle, nil, false)
@@ -180,7 +186,6 @@ extension WindowsWindow: IWindow {
     SetFocus(handle)
   }
 }
-
 private func getWindow(_ hWnd: HWND) -> Unmanaged<WindowsWindow>? {
   let userData = UInt(GetWindowLongPtrW(hWnd, Int32(GWLP_USERDATA)))
   guard let ptr = UnsafeRawPointer(bitPattern: userData) else {
@@ -189,7 +194,6 @@ private func getWindow(_ hWnd: HWND) -> Unmanaged<WindowsWindow>? {
 
   return Unmanaged.fromOpaque(ptr)
 }
-
 private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM)
   -> LRESULT
 {
