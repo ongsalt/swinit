@@ -9,15 +9,17 @@ public protocol IEventLoop {
 
   func stop()
 
-  func createWindow(title: String) -> Window
+  func createWindow(attributes: WindowAttributes) -> Window
 }
 public protocol IWindow {
   func requestRedraw()
   func focus()
   func prePresentNotify()  // wayland only
-
+  // func show()
   // func drag()
 }
+
 extension IWindow {
   public func prePresentNotify() {}
 }
+

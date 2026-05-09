@@ -13,8 +13,8 @@ public final class WindowEventLoop: IEventLoop {
     self.controlFlow = controlFlow
   }
 
-  public func createWindow(title: String) -> WindowsWindow {
-    WindowsWindow(eventLoop: self, title: title)
+  public func createWindow(attributes: WindowAttributes) -> WindowsWindow {
+    WindowsWindow(eventLoop: self, attributes: attributes)
   }
 
   public func run<R>(_ responder: R)

@@ -53,13 +53,13 @@ public class WindowsWindow: Identifiable {
     }
   }
 
-  init(eventLoop: WindowEventLoop, title: String, windowClass: String = "swinit_window") {
+  init(eventLoop: WindowEventLoop, attributes: WindowAttributes) {
     self.eventLoop = eventLoop
 
     self.hInstance = GetModuleHandleW(nil)!
     // why tf did i do that
-    self._title = WinString(title)
-    self._windowClass = WinString(windowClass)
+    self._title = WinString(attributes.title)
+    self._windowClass = WinString(attributes.windowClass)
 
     var windowClass = WNDCLASSW(
       style: UInt32(CS_HREDRAW | CS_VREDRAW),
@@ -87,7 +87,7 @@ public class WindowsWindow: Identifiable {
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
     let hwnd = CreateWindowExW(
-      0,  // UInt32(WS_EX_COMPOSITED),
+      attributes.noRedirectionBitmap ? UInt32(WS_EX_NOREDIRECTIONBITMAP) : 0, // TODO: expose window attributes config
       _windowClass.lpcwstr,
       _title.lpcwstr,
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
@@ -203,13 +203,6 @@ private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ l
     // let userData = UInt(GetWindowLongPtrW(hWnd, Int32(GWLP_USERDATA)))
     // print("whattt \(userData)")
     return DefWindowProcW(hWnd, message, wParam, lParam)
-
-  // case UINT(WM_NCDESTROY):
-  //   // TODO: think about releasing this
-  //   // This should be called some where else
-  //   // let window = getWindow(hWnd!)!
-  //   // window.release()
-  //   return LRESULT(0)
 
   default:
     if let window = getWindow(hWnd!) {

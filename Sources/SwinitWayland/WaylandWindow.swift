@@ -3,8 +3,8 @@ import SwinitCommon
 public class WaylandWindow {
     private let rawWindow: RawWindow
 
-    public init(display: Display, title: String) {
-        self.rawWindow = RawWindow(display: display, title: title)
+    public init(display: Display, attributes: WindowAttributes) {
+        self.rawWindow = RawWindow(display: display, title: attributes.title)
     }
 }
 

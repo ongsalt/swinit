@@ -71,7 +71,7 @@ extension WaylandEventLoop: IEventLoop {
     // or shuold this be global
     // EventLoop.main ????
     // and we force this to be only at most 1 per thread
-    public func createWindow(title: String) -> WaylandWindow {
-        WaylandWindow(display: self.wlDisplay, title: title)
+    public func createWindow(attributes: WindowAttributes) -> WaylandWindow {
+        WaylandWindow(display: self.wlDisplay, attributes: attributes)
     }
 }

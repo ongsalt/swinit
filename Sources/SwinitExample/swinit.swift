@@ -8,7 +8,7 @@ class Responder: Swinit.Responder {
   var window: Window? = nil
 
   func resumed(eventLoop: EventLoop) {
-    window = eventLoop.createWindow(title: "nahhhh")
+    window = eventLoop.createWindow(attributes: .init(title: "nahhhh"))
     #if canImport(SwinitWin32)
       // window!.drawUnderTitleBar = true
       window?.handle

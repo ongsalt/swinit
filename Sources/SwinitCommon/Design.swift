@@ -32,15 +32,6 @@ public enum ControlFlow {
     case `default`
 }
 
-func testFetch() async {
-    let req = URLRequest(url: URL(string: "https://dummyjson.com/RESOURCE/?limit=10&skip=5&select=key1,key2,key3")!)
-    // its libcurl, so probably a worker thread
-    let (data, response) = try! await URLSession.shared.data(for: req)
-    let res = String(bytes: data, encoding: .utf8)
-    // DispatchQueue
-    print(res)
-}
-
 // Usages
 // class EventLoop {
 //     init(mode: ControlFlow) {}
