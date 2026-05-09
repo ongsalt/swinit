@@ -15,8 +15,8 @@ extension WindowId: Hashable {
   }
 }
 public struct PhysicalSize<U> {
-  var width: U
-  var height: U
+  public var width: U
+  public var height: U
 
   public init(width: U, height: U) {
     self.width = width
