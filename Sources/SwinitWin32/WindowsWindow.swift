@@ -86,8 +86,16 @@ public class WindowsWindow: Identifiable {
     // think of this as the os (windows) have an unowned references to this
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
+    var exStyle: UInt32 = 0
+    if attributes.noRedirectionBitmap {
+      exStyle |= UInt32(WS_EX_NOREDIRECTIONBITMAP)
+    }
+    if attributes.transparency {
+      exStyle |= UInt32(WS_EX_LAYERED)
+    }
+
     let hwnd = CreateWindowExW(
-      attributes.noRedirectionBitmap ? UInt32(WS_EX_NOREDIRECTIONBITMAP) : 0, // TODO: expose window attributes config
+      exStyle, // TODO: expose window attributes config
       _windowClass.lpcwstr,
       _title.lpcwstr,
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
