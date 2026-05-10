@@ -36,6 +36,7 @@ public final class WindowsEventLoop: IEventLoop {
   }
 
   public func stop() {
+    // this shuold clear every window
     PostQuitMessage(0)
   }
 

@@ -14,7 +14,7 @@ class Responder: Swinit.Responder {
     #if canImport(SwinitWin32)
       window!.drawUnderTitleBar = true
       window?.backdropStyle = .mica
-    #endif  // canImport(SwinitWin32)
+    #endif
   }
 
   func windowEvent(
@@ -24,8 +24,9 @@ class Responder: Swinit.Responder {
     case .redrawRequested:
       print("nah")
 
-    case .closeRequested:
+    case .closeRequested: // TODO: this must be per window
       self.window = nil
+      self.window2 = nil
       eventLoop.stop()
 
     default:
