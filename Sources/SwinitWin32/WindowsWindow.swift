@@ -278,10 +278,6 @@ public class WindowsWindow: Identifiable {
     case UINT(WM_ERASEBKGND):
       return 1
 
-    case UINT(WM_SIZING):
-      print("WM_SIZING")
-      return 0
-
     default:
       return DefWindowProcW(hWnd, message, wParam, lParam)
     }
