@@ -12,7 +12,7 @@ public class WindowsWindow: Identifiable {
 
   public private(set) var handle: HWND! = nil
   public private(set) var hInstance: HINSTANCE! = nil
-  private unowned let eventLoop: WindowEventLoop
+  private unowned let eventLoop: WindowsEventLoop
 
   private let _title: WinString
   private let _windowClass: WinString
@@ -53,35 +53,13 @@ public class WindowsWindow: Identifiable {
     }
   }
 
-  init(eventLoop: WindowEventLoop, attributes: WindowAttributes) {
+  init(eventLoop: WindowsEventLoop, attributes: WindowAttributes) {
     self.eventLoop = eventLoop
 
     self.hInstance = GetModuleHandleW(nil)!
     // why tf did i do that
     self._title = WinString(attributes.title)
-    self._windowClass = WinString(attributes.windowClass)
-
-    var windowClass = WNDCLASSW(
-      style: UInt32(CS_HREDRAW | CS_VREDRAW),
-      lpfnWndProc: globalWndProc,
-      cbClsExtra: 0,
-      cbWndExtra: 0,
-      hInstance: hInstance,
-      hIcon: nil,
-      hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),  // IDC_ARROW
-      hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
-      // hbrBackground: UnsafeMutablePointer(bitPattern: 0),
-      lpszMenuName: nil,
-      lpszClassName: _windowClass.lpcwstr
-    )
-
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-
-    // ah, i love winapi
-    guard RegisterClassW(&windowClass) != 0 else {
-      fatalError("can not register window class, e: \(GetLastError())")
-    }
-    // throw self pointer to createWindowsSomeshi
+    self._windowClass = Self.windowClass
 
     // think of this as the os (windows) have an unowned references to this
     let selfPtr = Unmanaged.passUnretained(self).toOpaque()
@@ -95,7 +73,7 @@ public class WindowsWindow: Identifiable {
     }
 
     let hwnd = CreateWindowExW(
-      exStyle, // TODO: expose window attributes config
+      exStyle,  // TODO: expose window attributes config
       _windowClass.lpcwstr,
       _title.lpcwstr,
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
@@ -112,14 +90,63 @@ public class WindowsWindow: Identifiable {
     self.handle = hwnd!
   }
 
+  // TODO: window class registry
+  nonisolated(unsafe) static let windowClass: WinString = {
+    // TODO: move this out
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
+
+    let wc = WinString("swinit_default")
+
+    var windowClass = WNDCLASSW(
+      style: UInt32(CS_HREDRAW | CS_VREDRAW),
+      lpfnWndProc: globalWndProc,
+      cbClsExtra: 0,
+      cbWndExtra: 0,
+      hInstance: GetModuleHandleW(nil),
+      hIcon: nil,
+      hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),  // IDC_ARROW
+      hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),  // COLOR_WINDOWFRAME as! HBRUSH
+      // hbrBackground: UnsafeMutablePointer(bitPattern: 0),
+      lpszMenuName: nil,
+      lpszClassName: wc.lpcwstr
+    )
+
+    // ah, i love winapi
+    guard RegisterClassW(&windowClass) != 0 else {
+      fatalError("can not register window class, e: \(GetLastError())")
+    }
+
+    return wc
+  }()
+
+  // windows stop flushing messages when we are resizing
+  private var currentHeartbeatTimer: UInt64?
   internal func wndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM)
     -> LRESULT
   {
     switch message {
+    case UINT(WM_ENTERSIZEMOVE):
+      currentHeartbeatTimer = SetTimer(
+        hWnd, UInt64.random(in: UInt64.min...UInt64.max), WindowsEventLoop.tickIntervalMs, nil)
+      // print("register heartbeat timer: \(currentHeartbeatTimer)")
+      return 0
+
+    case UINT(WM_TIMER) where currentHeartbeatTimer != nil:
+      // if we set the first params to nil, the timer wont fire when we do rezing msg.hwnd
+      RunLoop.main.run(until: .distantPast)
+      return 0
+
+    case UINT(WM_EXITSIZEMOVE):
+      if let currentHeartbeatTimer {
+        // print("clear heartbeat timer")
+        KillTimer(hWnd, currentHeartbeatTimer)
+      }
+      return 0
+
     case UINT(WM_SIZE):
       let width = UInt32(LOWORD(lParam))
       let height = UInt32(HIWORD(lParam))
-      let size = PhysicalSize(width: width, height: height)
+      let size: PhysicalSize<UInt32> = PhysicalSize(width: width, height: height)
       eventLoop.sendWindowEvent(.resized(size), to: id)
       return 0
 
@@ -178,7 +205,8 @@ public class WindowsWindow: Identifiable {
         let btn = HIWORD(wParam)
         button = btn == XBUTTON1 ? .back : (btn == XBUTTON2 ? .forward : .other(btn))
       }
-      eventLoop.sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: .pressed, button: button), to: id)
+      eventLoop.sendWindowEvent(
+        .mouseInput(deviceId: DeviceId(), state: .pressed, button: button), to: id)
       return 0
 
     case UINT(WM_LBUTTONUP), UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
@@ -191,55 +219,68 @@ public class WindowsWindow: Identifiable {
         let btn = HIWORD(wParam)
         button = btn == XBUTTON1 ? .back : (btn == XBUTTON2 ? .forward : .other(btn))
       }
-      eventLoop.sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: .released, button: button), to: id)
+      eventLoop.sendWindowEvent(
+        .mouseInput(deviceId: DeviceId(), state: .released, button: button), to: id)
       return 0
 
     case UINT(WM_MOUSEWHEEL):
       let delta = Double(Int16(bitPattern: HIWORD(wParam))) / Double(WHEEL_DELTA)
-      eventLoop.sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: .line(x: 0, y: delta), phase: .moved), to: id)
+      eventLoop.sendWindowEvent(
+        .mouseWheel(deviceId: DeviceId(), delta: .line(x: 0, y: delta), phase: .moved), to: id)
       return 0
 
     case UINT(WM_MOUSEHWHEEL):
       let delta = Double(Int16(bitPattern: HIWORD(wParam))) / Double(WHEEL_DELTA)
-      eventLoop.sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: .line(x: delta, y: 0), phase: .moved), to: id)
+      eventLoop.sendWindowEvent(
+        .mouseWheel(deviceId: DeviceId(), delta: .line(x: delta, y: 0), phase: .moved), to: id)
       return 0
 
     case UINT(WM_KEYDOWN), UINT(WM_SYSKEYDOWN):
       let physicalKey = UInt32((lParam >> 16) & 0xFF)
       let logicalKey = UInt32(wParam)
       let isRepeat = (lParam & (1 << 30)) != 0
-      let event = KeyEvent(physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .pressed, isRepeat: isRepeat)
-      
+      let event = KeyEvent(
+        physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .pressed,
+        isRepeat: isRepeat)
+
       let modifiers = Modifiers(
         shift: GetKeyState(Int32(VK_SHIFT)) < 0,
         control: GetKeyState(Int32(VK_CONTROL)) < 0,
         alt: GetKeyState(Int32(VK_MENU)) < 0,
         superKey: GetKeyState(Int32(VK_LWIN)) < 0 || GetKeyState(Int32(VK_RWIN)) < 0
       )
-      
+
       eventLoop.sendWindowEvent(.modifiersChanged(modifiers), to: id)
-      eventLoop.sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
+      eventLoop.sendWindowEvent(
+        .keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
       return 0
 
     case UINT(WM_KEYUP), UINT(WM_SYSKEYUP):
       let physicalKey = UInt32((lParam >> 16) & 0xFF)
       let logicalKey = UInt32(wParam)
-      let event = KeyEvent(physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .released, isRepeat: false)
-      
+      let event = KeyEvent(
+        physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .released,
+        isRepeat: false)
+
       let modifiers = Modifiers(
         shift: GetKeyState(Int32(VK_SHIFT)) < 0,
         control: GetKeyState(Int32(VK_CONTROL)) < 0,
         alt: GetKeyState(Int32(VK_MENU)) < 0,
         superKey: GetKeyState(Int32(VK_LWIN)) < 0 || GetKeyState(Int32(VK_RWIN)) < 0
       )
-      
+
       eventLoop.sendWindowEvent(.modifiersChanged(modifiers), to: id)
-      eventLoop.sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
+      eventLoop.sendWindowEvent(
+        .keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
       return 0
 
     // no gdi
     case UINT(WM_ERASEBKGND):
       return 1
+
+    case UINT(WM_SIZING):
+      print("WM_SIZING")
+      return 0
 
     default:
       return DefWindowProcW(hWnd, message, wParam, lParam)

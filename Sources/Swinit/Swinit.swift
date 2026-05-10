@@ -5,7 +5,7 @@
 import SwinitWin32
 
 public typealias Window = WindowsWindow
-public typealias EventLoop = WindowEventLoop
+public typealias EventLoop = WindowsEventLoop
 
 #elseif canImport(SwinitWayland)
 

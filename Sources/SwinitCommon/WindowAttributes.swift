@@ -3,12 +3,10 @@ public struct WindowAttributes {
   public var transparency: Bool
 
   #if os(Windows)
-  public var windowClass: String
   public var noRedirectionBitmap: Bool
 
-  public init(title: String = "swinit_window", windowClass: String = "swinit_window", noRedirectionBitmap: Bool = false, transparency: Bool = false) {
+  public init(title: String = "swinit_window", noRedirectionBitmap: Bool = false, transparency: Bool = false) {
     self.title = title
-    self.windowClass = windowClass
     self.noRedirectionBitmap = noRedirectionBitmap
     self.transparency = transparency
   }

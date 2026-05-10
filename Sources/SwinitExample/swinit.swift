@@ -6,13 +6,14 @@ class Responder: Swinit.Responder {
   typealias EventLoop = Swinit.EventLoop
 
   var window: Window? = nil
+  var window2: Window? = nil
 
   func resumed(eventLoop: EventLoop) {
     window = eventLoop.createWindow(attributes: .init(title: "nahhhh"))
+    window2 = eventLoop.createWindow(attributes: .init(title: "win2"))
     #if canImport(SwinitWin32)
-      // window!.drawUnderTitleBar = true
-      window?.handle
-    // window?.backdropStyle = .mica
+      window!.drawUnderTitleBar = true
+      window?.backdropStyle = .mica
     #endif  // canImport(SwinitWin32)
   }
 
@@ -28,7 +29,8 @@ class Responder: Swinit.Responder {
       eventLoop.stop()
 
     default:
-      print(event)
+      do {}
+      // print(event)
     }
   }
 }
@@ -37,12 +39,12 @@ public struct Main {
   public static func main() {
     let eventLoop = EventLoop()!
 
-    // Task {
-    //   while !Task.isCancelled {
-    //     try await Task.sleep(for: .seconds(1))
-    //     print("hi")
-    //   }
-    // }
+    Task {
+      while !Task.isCancelled {
+        try await Task.sleep(for: .seconds(1))
+        print("> hi")
+      }
+    }
 
     let r = Responder()
     eventLoop.run(r)

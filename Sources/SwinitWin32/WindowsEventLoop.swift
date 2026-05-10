@@ -4,10 +4,11 @@ import SwinitCommon
 
 import WinSDK
 
-public final class WindowEventLoop: IEventLoop {
+public final class WindowsEventLoop: IEventLoop {
+  // static let heartbeatTimerId: UInt64 = 6720260305
   let controlFlow: ControlFlow
 
-  var responder: (any Responder<WindowEventLoop>)? = nil
+  var responder: (any Responder<WindowsEventLoop>)? = nil
 
   public init?(controlFlow: ControlFlow = .default) {
     self.controlFlow = controlFlow
@@ -18,7 +19,7 @@ public final class WindowEventLoop: IEventLoop {
   }
 
   public func run<R>(_ responder: R)
-  where WindowEventLoop == R.EventLoop, R: SwinitCommon.Responder {
+  where WindowsEventLoop == R.EventLoop, R: SwinitCommon.Responder {
     self.responder = responder
 
     // TODO: check which platform need this
@@ -53,14 +54,18 @@ public final class WindowEventLoop: IEventLoop {
     mainLoop: while true {
       // Process all messages in thread's message queue; for GUI applications UI
       // events must have high priority.
+      print("> Entering peek msg")
       while PeekMessageW(&msg, nil, 0, 0, UINT(PM_REMOVE)) {
+        print("> processing msg")
         if msg.message == UINT(WM_QUIT) {
           nExitCode = Int32(msg.wParam)
           break mainLoop
         }
 
         TranslateMessage(&msg)
+        print("> translated")
         DispatchMessageW(&msg)
+        print("> dispatched")
       }
 
       var time: Date? = nil
@@ -73,6 +78,9 @@ public final class WindowEventLoop: IEventLoop {
         // If Foundation.RunLoop doesn't contain any timers or the timers should
         // not be running right now, we interrupt the current loop or otherwise
         // continue to the next iteration.
+        if let time, time.timeIntervalSinceNow <= 0 {
+          print(time.timeIntervalSinceNow)
+        }
       } while (time?.timeIntervalSinceNow ?? -1) <= 0
 
       _ = MsgWaitForMultipleObjects(
@@ -85,18 +93,20 @@ public final class WindowEventLoop: IEventLoop {
     return nExitCode
   }
 
+  static let tickIntervalMs: UInt32 = 1
+
   private func runWaitingLoop() -> Int32 {
     var msg: MSG = MSG()
     var nExitCode: Int32 = EXIT_SUCCESS
-    let TICK_INTERVAL_MS: UInt32 = 1
 
     // schedule immdediately
-    let heartbeatTimer = SetTimer(nil, 0, 0, nil)
+    let heartbeatTimer = SetTimer(nil, 0, Self.tickIntervalMs, nil)
 
     while GetMessageW(&msg, nil, 0, 0) {
       switch msg.message {
       case UINT(WM_TIMER) where msg.wParam == heartbeatTimer:
-        SetTimer(nil, heartbeatTimer, TICK_INTERVAL_MS, nil)
+        // if we set the first params to nil, the timer wont fire when we do rezing msg.hwnd
+        // SetTimer(nil, heartbeatTimer, Self.tickIntervalMs, nil)
         RunLoop.main.run(until: .distantPast)
       case UINT(WM_QUIT):
         nExitCode = Int32(msg.wParam)
