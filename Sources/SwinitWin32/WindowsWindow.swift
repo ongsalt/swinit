@@ -168,6 +168,75 @@ public class WindowsWindow: Identifiable {
       eventLoop.sendWindowEvent(.cursorLeft(deviceId: deviceId), to: id)
       return 0
 
+    case UINT(WM_LBUTTONDOWN), UINT(WM_RBUTTONDOWN), UINT(WM_MBUTTONDOWN), UINT(WM_XBUTTONDOWN):
+      let button: MouseButton
+      switch message {
+      case UINT(WM_LBUTTONDOWN): button = .left
+      case UINT(WM_RBUTTONDOWN): button = .right
+      case UINT(WM_MBUTTONDOWN): button = .middle
+      default:
+        let btn = HIWORD(wParam)
+        button = btn == XBUTTON1 ? .back : (btn == XBUTTON2 ? .forward : .other(btn))
+      }
+      eventLoop.sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: .pressed, button: button), to: id)
+      return 0
+
+    case UINT(WM_LBUTTONUP), UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
+      let button: MouseButton
+      switch message {
+      case UINT(WM_LBUTTONUP): button = .left
+      case UINT(WM_RBUTTONUP): button = .right
+      case UINT(WM_MBUTTONUP): button = .middle
+      default:
+        let btn = HIWORD(wParam)
+        button = btn == XBUTTON1 ? .back : (btn == XBUTTON2 ? .forward : .other(btn))
+      }
+      eventLoop.sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: .released, button: button), to: id)
+      return 0
+
+    case UINT(WM_MOUSEWHEEL):
+      let delta = Double(Int16(bitPattern: HIWORD(wParam))) / Double(WHEEL_DELTA)
+      eventLoop.sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: .line(x: 0, y: delta), phase: .moved), to: id)
+      return 0
+
+    case UINT(WM_MOUSEHWHEEL):
+      let delta = Double(Int16(bitPattern: HIWORD(wParam))) / Double(WHEEL_DELTA)
+      eventLoop.sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: .line(x: delta, y: 0), phase: .moved), to: id)
+      return 0
+
+    case UINT(WM_KEYDOWN), UINT(WM_SYSKEYDOWN):
+      let physicalKey = UInt32((lParam >> 16) & 0xFF)
+      let logicalKey = UInt32(wParam)
+      let isRepeat = (lParam & (1 << 30)) != 0
+      let event = KeyEvent(physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .pressed, isRepeat: isRepeat)
+      
+      let modifiers = Modifiers(
+        shift: GetKeyState(Int32(VK_SHIFT)) < 0,
+        control: GetKeyState(Int32(VK_CONTROL)) < 0,
+        alt: GetKeyState(Int32(VK_MENU)) < 0,
+        superKey: GetKeyState(Int32(VK_LWIN)) < 0 || GetKeyState(Int32(VK_RWIN)) < 0
+      )
+      
+      eventLoop.sendWindowEvent(.modifiersChanged(modifiers), to: id)
+      eventLoop.sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
+      return 0
+
+    case UINT(WM_KEYUP), UINT(WM_SYSKEYUP):
+      let physicalKey = UInt32((lParam >> 16) & 0xFF)
+      let logicalKey = UInt32(wParam)
+      let event = KeyEvent(physicalKey: physicalKey, logicalKey: logicalKey, text: nil, state: .released, isRepeat: false)
+      
+      let modifiers = Modifiers(
+        shift: GetKeyState(Int32(VK_SHIFT)) < 0,
+        control: GetKeyState(Int32(VK_CONTROL)) < 0,
+        alt: GetKeyState(Int32(VK_MENU)) < 0,
+        superKey: GetKeyState(Int32(VK_LWIN)) < 0 || GetKeyState(Int32(VK_RWIN)) < 0
+      )
+      
+      eventLoop.sendWindowEvent(.modifiersChanged(modifiers), to: id)
+      eventLoop.sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: event, isSynthetic: false), to: id)
+      return 0
+
     // no gdi
     case UINT(WM_ERASEBKGND):
       return 1

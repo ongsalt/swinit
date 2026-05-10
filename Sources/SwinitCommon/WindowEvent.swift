@@ -27,6 +27,62 @@ public typealias PhysicalPosition = SIMD2
 public struct DeviceId: Equatable {
   public init() {}
 }
+public enum ElementState {
+  case pressed
+  case released
+}
+
+public enum MouseButton {
+  case left
+  case right
+  case middle
+  case back
+  case forward
+  case other(UInt16)
+}
+
+public enum MouseScrollDelta {
+  case line(x: Double, y: Double)
+  case pixel(x: Double, y: Double)
+}
+
+public enum TouchPhase {
+  case started
+  case moved
+  case ended
+  case cancelled
+}
+
+public struct Modifiers {
+  public var shift: Bool
+  public var control: Bool
+  public var alt: Bool
+  public var superKey: Bool
+
+  public init(shift: Bool = false, control: Bool = false, alt: Bool = false, superKey: Bool = false) {
+    self.shift = shift
+    self.control = control
+    self.alt = alt
+    self.superKey = superKey
+  }
+}
+
+public struct KeyEvent {
+  public var physicalKey: UInt32
+  public var logicalKey: UInt32
+  public var text: String?
+  public var state: ElementState
+  public var isRepeat: Bool
+
+  public init(physicalKey: UInt32, logicalKey: UInt32, text: String? = nil, state: ElementState, isRepeat: Bool) {
+    self.physicalKey = physicalKey
+    self.logicalKey = logicalKey
+    self.text = text
+    self.state = state
+    self.isRepeat = isRepeat
+  }
+}
+
 public enum WindowEvent {
   // case activationTokenDone(serial: AsyncRequestSerial, token: ActivationToken)
   case resized(PhysicalSize<UInt32>)
@@ -37,14 +93,14 @@ public enum WindowEvent {
   // case hoveredFile(PathBuf)
   // case hoveredFileCancelled
   case focused(Bool)
-  // case keyboardInput(deviceId: DeviceId, event: KeyEvent, isSynthetic: Bool)
-  // case modifiersChanged(Modifiers)
+  case keyboardInput(deviceId: DeviceId, event: KeyEvent, isSynthetic: Bool)
+  case modifiersChanged(Modifiers)
   // case ime(Ime)
   case cursorMoved(deviceId: DeviceId, position: PhysicalPosition<Double>)
   case cursorEntered(deviceId: DeviceId)
   case cursorLeft(deviceId: DeviceId)
-  // case mouseWheel(deviceId: DeviceId, delta: MouseScrollDelta, phase: TouchPhase)
-  // case mouseInput(deviceId: DeviceId, state: ElementState, button: MouseButton)
+  case mouseWheel(deviceId: DeviceId, delta: MouseScrollDelta, phase: TouchPhase)
+  case mouseInput(deviceId: DeviceId, state: ElementState, button: MouseButton)
   // case pinchGesture(deviceId: DeviceId, delta: Double, phase: TouchPhase)
   // case panGesture(deviceId: DeviceId, delta: PhysicalPosition<Float>, phase: TouchPhase)
   // case doubleTapGesture(deviceId: DeviceId)
