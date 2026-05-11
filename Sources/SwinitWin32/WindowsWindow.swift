@@ -27,6 +27,17 @@ public class WindowsWindow: Identifiable {
     }
   }
 
+  public var size: SIMD2<UInt> {
+    get {
+      var rect = RECT()
+      GetWindowRect(handle, &rect)
+      return SIMD2<UInt>(UInt(max(0, rect.right - rect.left)), UInt(max(0, rect.bottom - rect.top)))
+    }
+    set {
+      SetWindowPos(handle, nil, 0, 0, Int32(newValue.x), Int32(newValue.y), UINT(SWP_NOMOVE | SWP_NOZORDER))
+    }
+  }
+
   public var drawUnderTitleBar: Bool = false {
     didSet {
       var margins = MARGINS(
@@ -79,8 +90,8 @@ public class WindowsWindow: Identifiable {
       UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT,
       CW_USEDEFAULT,
-      CW_USEDEFAULT,
-      CW_USEDEFAULT,
+      Int32(attributes.size.x),
+      Int32(attributes.size.y),
       nil,
       nil,
       hInstance,

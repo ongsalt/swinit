@@ -12,6 +12,7 @@ public protocol IEventLoop {
   func createWindow(attributes: WindowAttributes) -> Window
 }
 public protocol IWindow {
+  var size: SIMD2<UInt> { get set }
   func requestRedraw()
   func focus()
   func prePresentNotify()  // wayland only
