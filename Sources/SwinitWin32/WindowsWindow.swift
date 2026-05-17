@@ -130,6 +130,7 @@ public class WindowsWindow: Identifiable {
     return wc
   }()
 
+  private var isResizing: Bool = false
   // windows stop flushing messages when we are resizing
   private var currentHeartbeatTimer: UInt64?
   internal func wndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM)
@@ -137,6 +138,7 @@ public class WindowsWindow: Identifiable {
   {
     switch message {
     case UINT(WM_ENTERSIZEMOVE):
+      isResizing = true
       currentHeartbeatTimer = SetTimer(
         hWnd, UInt64.random(in: UInt64.min...UInt64.max), WindowsEventLoop.tickIntervalMs, nil)
       // print("register heartbeat timer: \(currentHeartbeatTimer)")
@@ -148,17 +150,25 @@ public class WindowsWindow: Identifiable {
       return 0
 
     case UINT(WM_EXITSIZEMOVE):
+      isResizing = false
       if let currentHeartbeatTimer {
         // print("clear heartbeat timer")
         KillTimer(hWnd, currentHeartbeatTimer)
       }
+      
+      // Emit a final resize event upon exit
+      var rect = RECT()
+      GetClientRect(handle, &rect)
+      let size = PhysicalSize(width: UInt32(max(0, rect.right - rect.left)), height: UInt32(max(0, rect.bottom - rect.top)))
+      eventLoop.sendWindowEvent(.resized(size: size, isFinal: true), to: id)
+      
       return 0
 
     case UINT(WM_SIZE):
       let width = UInt32(LOWORD(lParam))
       let height = UInt32(HIWORD(lParam))
       let size: PhysicalSize<UInt32> = PhysicalSize(width: width, height: height)
-      eventLoop.sendWindowEvent(.resized(size), to: id)
+      eventLoop.sendWindowEvent(.resized(size: size, isFinal: !isResizing), to: id)
       return 0
 
     case UINT(WM_MOVE):

@@ -85,7 +85,7 @@ public struct KeyEvent {
 
 public enum WindowEvent {
   // case activationTokenDone(serial: AsyncRequestSerial, token: ActivationToken)
-  case resized(PhysicalSize<UInt32>)
+  case resized(size: PhysicalSize<UInt32>, isFinal: Bool)
   case moved(PhysicalPosition<Int32>)
   case closeRequested
   case destroyed
