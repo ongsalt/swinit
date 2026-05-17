@@ -1,4 +1,4 @@
-public class Box<T> {
+package class Box<T> {
     public let ptr: UnsafeMutablePointer<T>
     public var readonly: UnsafePointer<T> {
         UnsafePointer(ptr)

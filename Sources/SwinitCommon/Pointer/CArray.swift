@@ -1,5 +1,5 @@
 /// memory location is gauranteed for at least lifetime of this
-public class CArray<Element> {
+package class CArray<Element> {
     public let buffer: UnsafeMutableBufferPointer<Element>
     public var ptr: UnsafeMutablePointer<Element>? {
         buffer.baseAddress

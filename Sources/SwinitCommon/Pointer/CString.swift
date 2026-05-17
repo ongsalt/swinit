@@ -1,7 +1,7 @@
 #if canImport(Glibc)
 import Glibc
 
-public final class CString {
+package final class CString {
     public var swiftString: String {
         didSet {
             update()
