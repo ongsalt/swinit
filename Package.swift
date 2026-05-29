@@ -10,6 +10,9 @@ let package = Package(
             targets: ["Swinit"],
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master")
+    ],
     targets: [
         .target(
             name: "CWin32"
@@ -25,6 +28,7 @@ let package = Package(
         .target(
             name: "SwinitWayland",
             dependencies: [
+                .product(name: "SwiftWayland", package: "SwiftWayland"),
                 "SwinitCommon",
             ]
         ),
@@ -40,11 +44,6 @@ let package = Package(
                 .byName(name: "SwinitWin32", condition: .when(platforms: [.windows])),
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux]))
             ]
-        ),
-        
-        .executableTarget(
-            name: "SwinitExample",
-            dependencies: ["Swinit"]
         ),
         .testTarget(
             name: "swinitTests",

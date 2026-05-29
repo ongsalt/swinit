@@ -1,5 +1,4 @@
 import Foundation
-
 import Swinit
 
 class Responder: Swinit.Responder {
@@ -24,30 +23,28 @@ class Responder: Swinit.Responder {
     case .redrawRequested:
       print("nah")
 
-    case .closeRequested: // TODO: this must be per window
+    case .closeRequested:  // TODO: this must be per window
       self.window = nil
       self.window2 = nil
       eventLoop.stop()
 
     default:
       do {}
-      // print(event)
+    // print(event)
     }
   }
 }
-@main
-public struct Main {
-  public static func main() {
-    let eventLoop = EventLoop()!
 
-    Task {
-      while !Task.isCancelled {
-        try await Task.sleep(for: .seconds(1))
-        print("> hi")
-      }
-    }
+let eventLoop = EventLoop()!
 
-    let r = Responder()
-    eventLoop.run(r)
-  }
-}
+// Task {
+//   var i = 0
+//   while !Task.isCancelled {
+//     try await Task.sleep(for: .seconds(1))
+//     print("> hi \(i)")
+//     i += 1
+//   }
+// }
+
+let r = Responder()
+eventLoop.run(r)
