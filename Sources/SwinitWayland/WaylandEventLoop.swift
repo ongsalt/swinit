@@ -45,6 +45,7 @@ public final class WaylandEventLoop: IEventLoop {
             toplevel: toplevel
         )
         windows[surface.id] = window
+        connection.roundtrip()
         return window
     }
 
