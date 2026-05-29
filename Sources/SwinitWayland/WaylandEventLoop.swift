@@ -12,22 +12,17 @@ public final class WaylandEventLoop: IEventLoop {
 
     var responder: (any Responder<WaylandEventLoop>)? = nil
 
-    // Globals bound after roundtrip
     private var compositor: WlCompositor?
     private var xdgWmBase: XdgWmBase?
     private var seat: WlSeat?
     private var pointer: WlPointer?
     private var keyboard: WlKeyboard?
+    public private(set) var globals: Globals?
 
-    // Surface ID → window, for routing input events
+    // Surface ID → window for input routing
     private var windows: [UInt32: WaylandWindow] = [:]
-    // Surface currently under pointer / holding keyboard focus
     private var pointerWindowId: WindowId? = nil
     private var keyboardWindowId: WindowId? = nil
-    // Serial of the last seat event (for interactive ops)
-    private var lastPointerSerial: UInt32 = 0
-    private var lastKeyboardSerial: UInt32 = 0
-    // Accumulated modifiers
     private var currentModifiers: Modifiers = Modifiers()
 
     public init?(controlFlow: ControlFlow = .default) {
@@ -70,7 +65,8 @@ public final class WaylandEventLoop: IEventLoop {
 
             compositor = try globals.bind(version: 6...6, type: WlCompositor.self)
             xdgWmBase = try globals.bind(version: 6...7, type: XdgWmBase.self)
-            seat = try globals.bind(version: 1...9, type: WlSeat.self)
+            seat = try? globals.bind(version: 1...9, type: WlSeat.self)
+            self.globals = globals
 
             xdgWmBase!.onEvent = { [weak self] event in
                 guard let self, case .ping(let serial) = event else { return }
@@ -86,94 +82,84 @@ public final class WaylandEventLoop: IEventLoop {
 
         responder.resumed(eventLoop: self)
 
-        let observer = RunLoopObserver(on: [.beforeWaiting, .afterWaiting]) { [weak self] activity in
-            guard let self else { return }
-            if activity == CFRunLoopActivity.afterWaiting {
-                try? self.connection.dispatchPending()
-            } else {
-                try? self.connection.flush()
-            }
-        }
-
+        // When the Wayland fd is readable: read events from the socket,
+        // dispatch them (running our callbacks which may buffer new requests),
+        // then immediately flush those replies back to the compositor.
         let source = connection.makeReadSource()
         source.setEventHandler(qos: .userInteractive) { [weak self] in
-            try? self?.connection.dispatchPending()
+            guard let self else { return }
+            connection.readEvents()
+            try? connection.dispatchPending()
+            try? connection.flush()
         }
         source.activate()
 
-        try? connection.flush()
+        // Before the RunLoop sleeps: drain any already-queued events, then
+        // call prepareRead() to announce we are ready for the next read cycle,
+        // and flush any requests buffered by user code (e.g. requestRedraw).
+        let observer = RunLoopObserver(on: [.beforeWaiting]) { [weak self] _ in
+            guard let self else { return }
+            while !connection.prepareRead() {
+                try? connection.dispatchPending()
+                try? connection.flush()
+            }
+            try? connection.flush()
+        }
 
+        try? connection.flush()
         observer.start()
         RunLoop.main.run()
         observer.stop()
         source.suspend()
+        connection.cancelRead()
     }
 
     public func stop() {
         CFRunLoopStop(CFRunLoopGetCurrent())
     }
 
-    // MARK: - Input setup
+    // MARK: - Input
 
     private func setupSeatInput() {
         guard let seat else { return }
-
         pointer = try? seat.getPointer()
         keyboard = try? seat.getKeyboard()
-
         setupPointerEvents()
         setupKeyboardEvents()
     }
 
-    private func findWindow(bySurfaceId surfaceId: UInt32) -> WaylandWindow? {
-        windows[surfaceId]
+    private func findWindow(bySurfaceId id: UInt32) -> WaylandWindow? {
+        windows[id]
     }
 
     private func setupPointerEvents() {
         pointer?.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
-            case .enter(let serial, let surface, let x, let y):
-                lastPointerSerial = serial
+            case .enter(_, let surface, let x, let y):
                 if let window = findWindow(bySurfaceId: surface.id) {
                     pointerWindowId = window.id
                     sendWindowEvent(.cursorEntered(deviceId: DeviceId()), to: window.id)
-                    let pos = PhysicalPosition(x, y)
-                    sendWindowEvent(.cursorMoved(deviceId: DeviceId(), position: pos), to: window.id)
+                    sendWindowEvent(.cursorMoved(deviceId: DeviceId(), position: PhysicalPosition(x, y)), to: window.id)
                 }
-
-            case .leave(let serial, let surface):
-                lastPointerSerial = serial
+            case .leave(_, let surface):
                 if let window = findWindow(bySurfaceId: surface.id) {
                     sendWindowEvent(.cursorLeft(deviceId: DeviceId()), to: window.id)
                 }
                 pointerWindowId = nil
-
             case .motion(_, let x, let y):
-                if let windowId = pointerWindowId {
-                    let pos = PhysicalPosition(x, y)
-                    sendWindowEvent(.cursorMoved(deviceId: DeviceId(), position: pos), to: windowId)
+                if let wid = pointerWindowId {
+                    sendWindowEvent(.cursorMoved(deviceId: DeviceId(), position: PhysicalPosition(x, y)), to: wid)
                 }
-
-            case .button(let serial, _, let button, let state):
-                lastPointerSerial = serial
-                guard let windowId = pointerWindowId else { return }
-                let mouseButton = linuxButtonToMouseButton(button)
-                let elementState: ElementState = state == 1 ? .pressed : .released
-                sendWindowEvent(
-                    .mouseInput(deviceId: DeviceId(), state: elementState, button: mouseButton),
-                    to: windowId)
-
+            case .button(_, _, let button, let state):
+                if let wid = pointerWindowId {
+                    sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: state == 1 ? .pressed : .released, button: linuxButtonToMouseButton(button)), to: wid)
+                }
             case .axis(_, let axis, let value):
-                guard let windowId = pointerWindowId else { return }
-                // axis 0 = vertical scroll, axis 1 = horizontal scroll
-                let delta: MouseScrollDelta = axis == 0
-                    ? .pixel(x: 0, y: -value)
-                    : .pixel(x: -value, y: 0)
-                sendWindowEvent(
-                    .mouseWheel(deviceId: DeviceId(), delta: delta, phase: .moved),
-                    to: windowId)
-
+                if let wid = pointerWindowId {
+                    let delta: MouseScrollDelta = axis == 0 ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
+                    sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: delta, phase: .moved), to: wid)
+                }
             default:
                 break
             }
@@ -184,64 +170,41 @@ public final class WaylandEventLoop: IEventLoop {
         keyboard?.onEvent = { [weak self] event in
             guard let self else { return }
             switch event {
-            case .enter(let serial, let surface, _):
-                lastKeyboardSerial = serial
+            case .enter(_, let surface, _):
                 if let window = findWindow(bySurfaceId: surface.id) {
                     keyboardWindowId = window.id
                     sendWindowEvent(.focused(true), to: window.id)
                 }
-
-            case .leave(let serial, let surface):
-                lastKeyboardSerial = serial
+            case .leave(_, let surface):
                 if let window = findWindow(bySurfaceId: surface.id) {
                     sendWindowEvent(.focused(false), to: window.id)
                 }
                 keyboardWindowId = nil
-
-            case .key(let serial, _, let key, let state):
-                lastKeyboardSerial = serial
-                guard let windowId = keyboardWindowId else { return }
-                let elementState: ElementState = state == 1 ? .pressed : .released
-                let isRepeat = false  // Wayland doesn't send repeat in key event; compositor handles it via keymap
-                let keyEvent = KeyEvent(
-                    physicalKey: key,
-                    logicalKey: key,
-                    text: nil,
-                    state: elementState,
-                    isRepeat: isRepeat
-                )
-                sendWindowEvent(.modifiersChanged(currentModifiers), to: windowId)
-                sendWindowEvent(
-                    .keyboardInput(deviceId: DeviceId(), event: keyEvent, isSynthetic: false),
-                    to: windowId)
-
+            case .key(_, _, let key, let state):
+                if let wid = keyboardWindowId {
+                    let keyEvent = KeyEvent(physicalKey: key, logicalKey: key, text: nil, state: state == 1 ? .pressed : .released, isRepeat: false)
+                    sendWindowEvent(.modifiersChanged(currentModifiers), to: wid)
+                    sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: keyEvent, isSynthetic: false), to: wid)
+                }
             case .modifiers(_, let depressed, let latched, let locked, _):
                 let combined = depressed | latched | locked
-                currentModifiers = Modifiers(
-                    shift: combined & 1 != 0,
-                    control: combined & 4 != 0,
-                    alt: combined & 8 != 0,
-                    superKey: combined & 64 != 0
-                )
-                if let windowId = keyboardWindowId {
-                    sendWindowEvent(.modifiersChanged(currentModifiers), to: windowId)
+                currentModifiers = Modifiers(shift: combined & 1 != 0, control: combined & 4 != 0, alt: combined & 8 != 0, superKey: combined & 64 != 0)
+                if let wid = keyboardWindowId {
+                    sendWindowEvent(.modifiersChanged(currentModifiers), to: wid)
                 }
-
             default:
                 break
             }
         }
     }
 
-    // MARK: - Helpers
-
     private func linuxButtonToMouseButton(_ button: UInt32) -> MouseButton {
         switch button {
-        case 0x110: return .left    // BTN_LEFT
-        case 0x111: return .right   // BTN_RIGHT
-        case 0x112: return .middle  // BTN_MIDDLE
-        case 0x113: return .back    // BTN_SIDE
-        case 0x114: return .forward // BTN_EXTRA
+        case 0x110: return .left
+        case 0x111: return .right
+        case 0x112: return .middle
+        case 0x113: return .back
+        case 0x114: return .forward
         default: return .other(UInt16(button & 0xFFFF))
         }
     }

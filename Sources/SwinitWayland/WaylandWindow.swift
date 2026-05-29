@@ -2,7 +2,10 @@ import SwiftWayland
 import WaylandProtocols
 import SwinitCommon
 
-/// NO GNOME SUPPORT. CSD is not yet implemented (use a compositor that respects xdg-shell without forcing CSD)
+/// NO GNOME SUPPORT. CSD is not yet implemented.
+///
+/// The surface is not mapped until the user's rendering API (Vulkan, EGL, etc.)
+/// attaches a buffer via the exposed `surface`.
 public final class WaylandWindow: Identifiable {
     public typealias ID = WindowId
     public let id: WindowId = WindowId()
@@ -15,7 +18,6 @@ public final class WaylandWindow: Identifiable {
     private unowned let eventLoop: WaylandEventLoop
 
     private var _size: SIMD2<UInt>
-    // Size compositor wants us to use; zero means we choose
     private var pendingToplevelSize: SIMD2<UInt> = .zero
     private var configured: Bool = false
 
@@ -43,12 +45,9 @@ public final class WaylandWindow: Identifiable {
             guard let self else { return }
             switch event {
             case .configure(let width, let height, _):
-                // Zero means compositor defers to us
-                if width > 0 && height > 0 {
-                    pendingToplevelSize = SIMD2<UInt>(UInt(width), UInt(height))
-                } else {
-                    pendingToplevelSize = .zero
-                }
+                pendingToplevelSize = width > 0 && height > 0
+                    ? SIMD2<UInt>(UInt(width), UInt(height))
+                    : .zero
             case .close:
                 eventLoop.sendWindowEvent(.closeRequested, to: id)
             default:
@@ -57,23 +56,22 @@ public final class WaylandWindow: Identifiable {
         }
 
         xdgSurface.onEvent = { [weak self] event in
-            guard let self else { return }
-            if case .configure(let serial) = event {
-                try? xdgSurface.ackConfigure(serial: serial)
+            guard let self, case .configure(let serial) = event else { return }
+            try? xdgSurface.ackConfigure(serial: serial)
 
-                let newSize = pendingToplevelSize == .zero ? _size : pendingToplevelSize
-                let isInitial = !configured
-                configured = true
+            let newSize = pendingToplevelSize == .zero ? _size : pendingToplevelSize
+            let isInitial = !configured
+            configured = true
 
-                if newSize != _size || isInitial {
-                    _size = newSize
-                    let physSize = PhysicalSize(
-                        width: UInt32(newSize.x), height: UInt32(newSize.y))
-                    eventLoop.sendWindowEvent(.resized(size: physSize, isFinal: true), to: id)
-                }
-
-                try? surface.commit()
+            if newSize != _size || isInitial {
+                _size = newSize
+                let physSize = PhysicalSize(width: UInt32(newSize.x), height: UInt32(newSize.y))
+                eventLoop.sendWindowEvent(.resized(size: physSize, isFinal: true), to: id)
             }
+
+            // Commit without a buffer — surface stays unmapped until the
+            // renderer (Vulkan/EGL/wgpu) attaches its own buffer.
+            try? surface.commit()
         }
     }
 
@@ -96,11 +94,10 @@ extension WaylandWindow: IWindow {
     }
 
     public func focus() {
-        // No direct focus request in Wayland; compositor controls focus
+        // Wayland does not expose a client-side focus request
     }
 
     public func prePresentNotify() {
-        // Request a frame callback so the compositor can throttle our rendering
         try? surface.frame { _ in }
     }
 }
