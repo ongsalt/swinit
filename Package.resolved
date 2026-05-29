@@ -1,13 +1,13 @@
 {
-  "originHash" : "d9e366d30e4b9214cbe83cb4b8677c5466e6dc2db1b95af2aa4f9fb6359719c4",
+  "originHash" : "fc97a069e4540be49afcc25b7aee2b296627e3830202d7d4db1d6a500703391f",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser",
       "state" : {
-        "revision" : "626b5b7b2f45e1b0b1c6f4a309296d1d21d7311b",
-        "version" : "1.7.1"
+        "revision" : "ca37474853a4b5f59a22c74bfdd449b1f6bc4cc2",
+        "version" : "1.8.1"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/ongsalt/SwiftWayland",
       "state" : {
         "branch" : "master",
-        "revision" : "21655193cf45ab48bf27b2694cd2b7550c97acca"
+        "revision" : "e3eda8284f5fc956f7e60fd2adaeaf772ecf819e"
       }
     },
     {

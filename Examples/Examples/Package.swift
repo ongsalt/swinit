@@ -1,18 +1,18 @@
 // swift-tools-version: 6.3
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
 import PackageDescription
 
 let package = Package(
     name: "Examples",
     dependencies: [
-        .package(path: "../..")
+        .package(path: "../.."),
+        .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master"),
     ],
     targets: [
         .executableTarget(
             name: "Examples",
             dependencies: [
-                .product(name: "Swinit", package: "swinit")
+                .product(name: "Swinit", package: "swinit"),
+                .product(name: "SwiftWayland", package: "SwiftWayland", condition: .when(platforms: [.linux])),
             ]
         ),
     ],
