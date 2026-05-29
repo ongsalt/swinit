@@ -22,11 +22,9 @@ let package = Package(
             ]
         ),
 
-        .target(name: "CWayland"),
         .target(
             name: "SwinitWayland",
             dependencies: [
-                "CWayland",
                 "SwinitCommon",
             ]
         ),
