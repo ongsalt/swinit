@@ -15,12 +15,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "CWin32"
-        ),
-        .target(
             name: "SwinitWin32",
             dependencies: [
-                "CWin32",
                 "SwinitCommon",
             ]
         ),

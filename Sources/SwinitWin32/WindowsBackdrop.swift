@@ -1,5 +1,3 @@
-import CWin32
-
 // from mica for everyone
 public enum WindowsBackdropStyle: UInt32 {
   case auto

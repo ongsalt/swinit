@@ -1,5 +1,3 @@
-import CWin32
-
 import Foundation
 
 import SwinitCommon
