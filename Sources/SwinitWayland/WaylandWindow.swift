@@ -35,7 +35,7 @@ public final class WaylandWindow: Identifiable {
         self.toplevel = toplevel
         self._size = attributes.size
 
-        try? toplevel.setTitle(title: attributes.title)
+        try? toplevel.setTitle(attributes.title)
         setupCallbacks()
         try? surface.commit()
     }

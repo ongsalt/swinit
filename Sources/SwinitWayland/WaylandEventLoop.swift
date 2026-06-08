@@ -62,11 +62,10 @@ public final class WaylandEventLoop: IEventLoop {
 
         do {
             let globals = try Globals(connection: connection)
-            try connection.roundtrip()
 
-            compositor = try globals.bind(version: 6...6, type: WlCompositor.self)
-            xdgWmBase = try globals.bind(version: 6...7, type: XdgWmBase.self)
-            seat = try? globals.bind(version: 1...9, type: WlSeat.self)
+            compositor = try globals.bind(to: WlCompositor.self, version: 6...6)
+            xdgWmBase = try globals.bind(to: XdgWmBase.self, version: 6...7)
+            seat = try? globals.bind(to: WlSeat.self, version: 1...9)
             self.globals = globals
 
             xdgWmBase!.onEvent = { [weak self] event in
@@ -74,9 +73,9 @@ public final class WaylandEventLoop: IEventLoop {
                 try? self.xdgWmBase?.pong(serial: serial)
             }
 
-            try connection.roundtrip()
+            connection.roundtrip()
             setupSeatInput()
-            try connection.roundtrip()
+            connection.roundtrip()
         } catch {
             fatalError("Failed to initialize Wayland globals: \(error)")
         }
@@ -154,11 +153,11 @@ public final class WaylandEventLoop: IEventLoop {
                 }
             case .button(_, _, let button, let state):
                 if let wid = pointerWindowId {
-                    sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: state == 1 ? .pressed : .released, button: linuxButtonToMouseButton(button)), to: wid)
+                    sendWindowEvent(.mouseInput(deviceId: DeviceId(), state: state == .pressed ? .pressed : .released, button: linuxButtonToMouseButton(button)), to: wid)
                 }
             case .axis(_, let axis, let value):
                 if let wid = pointerWindowId {
-                    let delta: MouseScrollDelta = axis == 0 ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
+                    let delta: MouseScrollDelta = axis == .verticalScroll ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
                     sendWindowEvent(.mouseWheel(deviceId: DeviceId(), delta: delta, phase: .moved), to: wid)
                 }
             default:
@@ -183,7 +182,7 @@ public final class WaylandEventLoop: IEventLoop {
                 keyboardWindowId = nil
             case .key(_, _, let key, let state):
                 if let wid = keyboardWindowId {
-                    let keyEvent = KeyEvent(physicalKey: key, logicalKey: key, text: nil, state: state == 1 ? .pressed : .released, isRepeat: false)
+                    let keyEvent = KeyEvent(physicalKey: key, logicalKey: key, text: nil, state: state == .pressed ? .pressed : .released, isRepeat: false)
                     sendWindowEvent(.modifiersChanged(currentModifiers), to: wid)
                     sendWindowEvent(.keyboardInput(deviceId: DeviceId(), event: keyEvent, isSynthetic: false), to: wid)
                 }

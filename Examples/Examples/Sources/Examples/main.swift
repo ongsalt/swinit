@@ -58,7 +58,7 @@ final class ShmRenderer: @unchecked Sendable {
         let b = try? p?.createBuffer(
             offset: 0,
             width: Int32(width), height: Int32(height), stride: Int32(stride),
-            format: WlShm.Format.xrgb8888.rawValue
+            format: WlShm.Format.xrgb8888
         )
         let mapped = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
         _ = fh  // keep fd alive until after mmap
@@ -94,7 +94,7 @@ class AppResponder: Swinit.Responder {
         window = eventLoop.createWindow(attributes: .init(title: "swinit – shm example"))
 
         #if canImport(SwiftWayland)
-        if let shm = try? eventLoop.globals?.bind(version: 2...2, type: WlShm.self) {
+        if let shm = try? eventLoop.globals?.bind(to: WlShm.self, version: 2...2) {
             renderer = ShmRenderer(shm: shm)
         }
         // Synchronously process the initial configure so the window renders
