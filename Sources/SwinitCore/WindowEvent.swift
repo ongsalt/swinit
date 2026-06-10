@@ -71,12 +71,20 @@ public struct KeyEvent: Sendable {
     }
 }
 
+public enum WindowState: Sendable {
+    case normal
+    case maximized
+    case fullscreen
+    case minimized
+}
+
 public enum WindowEvent: Sendable {
     case resized(size: PhysicalSize<UInt32>, isFinal: Bool)
     case moved(PhysicalPosition<Int32>)
     case closeRequested
     case destroyed
     case focused(Bool)
+    case stateChanged(WindowState)
     case keyboardInput(deviceId: DeviceId, event: KeyEvent, isSynthetic: Bool)
     case modifiersChanged(Modifiers)
     case cursorMoved(deviceId: DeviceId, position: PhysicalPosition<Double>)
