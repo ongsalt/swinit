@@ -17,7 +17,7 @@ let package = Package(
         .target(
             name: "SwinitWin32",
             dependencies: [
-                "SwinitCommon",
+                "SwinitCore",
             ]
         ),
 
@@ -25,18 +25,18 @@ let package = Package(
             name: "SwinitWayland",
             dependencies: [
                 .product(name: "SwiftWayland", package: "SwiftWayland"),
-                "SwinitCommon",
+                "SwinitCore",
             ]
         ),
 
         .target(
-            name: "SwinitCommon"
+            name: "SwinitCore"
         ),
 
         .target(
             name: "Swinit",
             dependencies: [
-                "SwinitCommon",
+                "SwinitCore",
                 .byName(name: "SwinitWin32", condition: .when(platforms: [.windows])),
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux]))
             ]

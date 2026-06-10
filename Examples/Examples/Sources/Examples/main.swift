@@ -13,9 +13,7 @@ final class ShmRenderer: @unchecked Sendable {
     private var bufferData: UnsafeMutableRawPointer?
     private var mappedSize: Int = 0
 
-    init(shm: WlShm) {
-        self.shm = shm
-    }
+    init(shm: WlShm) { self.shm = shm }
 
     deinit {
         if let bufferData, mappedSize > 0 { munmap(bufferData, mappedSize) }
@@ -26,15 +24,8 @@ final class ShmRenderer: @unchecked Sendable {
     func render(to surface: WlSurface, width: Int, height: Int) {
         let stride = width * 4
         let needed = stride * height
-
-        if needed != mappedSize {
-            recreate(width: width, height: height, stride: stride, size: needed)
-        }
-
-        if let bufferData {
-            fillGradient(bufferData, width: width, height: height)
-        }
-
+        if needed != mappedSize { recreate(width: width, height: height, stride: stride, size: needed) }
+        if let bufferData { fillGradient(bufferData, width: width, height: height) }
         guard let buffer else { return }
         try? surface.attach(buffer: buffer, x: 0, y: 0)
         try? surface.damage(x: 0, y: 0, width: Int32(width), height: Int32(height))
@@ -43,8 +34,7 @@ final class ShmRenderer: @unchecked Sendable {
 
     private func recreate(width: Int, height: Int, stride: Int, size: Int) {
         if let bufferData, mappedSize > 0 { munmap(bufferData, mappedSize) }
-        try? buffer?.destroy()
-        try? pool?.destroy()
+        try? buffer?.destroy(); try? pool?.destroy()
         bufferData = nil; buffer = nil; pool = nil; mappedSize = 0
 
         let name = "/swinit-\(UInt64.random(in: .min ... .max))"
@@ -52,17 +42,11 @@ final class ShmRenderer: @unchecked Sendable {
         guard fd != -1 else { return }
         _ = shm_unlink(name)
         guard ftruncate(fd, off_t(size)) == 0 else { close(fd); return }
-
         let fh = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         let p = try? shm.createPool(fd: fh, size: Int32(size))
-        let b = try? p?.createBuffer(
-            offset: 0,
-            width: Int32(width), height: Int32(height), stride: Int32(stride),
-            format: WlShm.Format.xrgb8888
-        )
+        let b = try? p?.createBuffer(offset: 0, width: Int32(width), height: Int32(height), stride: Int32(stride), format: WlShm.Format.xrgb8888)
         let mapped = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
-        _ = fh  // keep fd alive until after mmap
-
+        _ = fh
         pool = p; buffer = b; mappedSize = size
         bufferData = (mapped != MAP_FAILED) ? mapped : nil
     }
@@ -81,7 +65,8 @@ final class ShmRenderer: @unchecked Sendable {
 }
 #endif
 
-class AppResponder: Swinit.Responder {
+@MainActor
+final class App: Responder {
     typealias EventLoop = Swinit.EventLoop
 
     var window: Window?
@@ -91,14 +76,12 @@ class AppResponder: Swinit.Responder {
     #endif
 
     func resumed(eventLoop: EventLoop) {
-        window = eventLoop.createWindow(attributes: .init(title: "swinit – shm example"))
+        window = eventLoop.createWindow(attributes: .init(title: "swinit example"))
 
         #if canImport(SwiftWayland)
         if let shm = try? eventLoop.globals?.bind(to: WlShm.self, version: 2...2) {
             renderer = ShmRenderer(shm: shm)
         }
-        // Synchronously process the initial configure so the window renders
-        // before the RunLoop starts (avoids a blank frame on first show).
         #endif
 
         #if canImport(SwinitWin32)
@@ -107,18 +90,17 @@ class AppResponder: Swinit.Responder {
         #endif
     }
 
-    func windowEvent(eventLoop: EventLoop, windowId: WindowId, event: WindowEvent) {
+    func windowEvent(eventLoop: EventLoop, window: Window, event: WindowEvent) {
         switch event {
-        // Fired after xdg_surface::configure is ack'd — safe to attach a buffer here.
         case .resized(let size, _):
             #if canImport(SwiftWayland)
-            if let surface = window?.surface, let renderer {
+            if let surface = window.surface, let renderer {
                 renderer.render(to: surface, width: Int(size.width), height: Int(size.height))
             }
             #endif
 
         case .closeRequested:
-            window = nil
+            self.window = nil
             eventLoop.stop()
 
         default:
@@ -128,5 +110,5 @@ class AppResponder: Swinit.Responder {
 }
 
 let eventLoop = EventLoop()!
-let responder = AppResponder()
-eventLoop.run(responder)
+let app = App()
+eventLoop.run(app)

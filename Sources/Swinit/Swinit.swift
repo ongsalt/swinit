@@ -1,22 +1,7 @@
-@_exported import SwinitCommon
+@_exported import SwinitCore
 
 #if canImport(SwinitWin32)
-
-import SwinitWin32
-
-public typealias Window = WindowsWindow
-public typealias EventLoop = WindowsEventLoop
-
+@_exported import SwinitWin32
 #elseif canImport(SwinitWayland)
-
-import SwinitWayland
-
-public typealias Window = WaylandWindow
-public typealias EventLoop = WaylandEventLoop
-
-#else
-
-public typealias Window = Any
-public typealias EventLoop = Any
-
+@_exported import SwinitWayland
 #endif
