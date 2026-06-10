@@ -14,6 +14,12 @@ let package = Package(
         .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master")
     ],
     targets: [
+        .systemLibrary(
+            name: "CCairo",
+            pkgConfig: "cairo",
+            providers: [.apt(["libcairo2-dev"]), .brew(["cairo"])]
+        ),
+
         .target(
             name: "SwinitWin32",
             dependencies: [
@@ -26,6 +32,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftWayland", package: "SwiftWayland"),
                 "SwinitCore",
+                .target(name: "CCairo", condition: .when(platforms: [.linux])),
             ]
         ),
 

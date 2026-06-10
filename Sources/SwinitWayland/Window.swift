@@ -61,6 +61,11 @@ public final class Window: SwinitCore.WindowProtocol {
         set {
             _title = newValue
             try? toplevel.setTitle(newValue)
+            if let csd, let shm = eventLoop.shm {
+                try? csd.update(shm: shm, contentSize: _size, title: newValue,
+                                maximized: isMaximized, activated: isActivated)
+                try? surface.commit()
+            }
         }
     }
 
@@ -81,7 +86,7 @@ public final class Window: SwinitCore.WindowProtocol {
     func setActivated(_ active: Bool) {
         guard active != isActivated, let csd, let shm = eventLoop.shm else { return }
         isActivated = active
-        try? csd.update(shm: shm, contentSize: _size, maximized: isMaximized, activated: active)
+        try? csd.update(shm: shm, contentSize: _size, title: _title, maximized: isMaximized, activated: active)
         try? surface.commit()
     }
 
@@ -151,7 +156,7 @@ public final class Window: SwinitCore.WindowProtocol {
             // Update CSD subsurfaces (before ack so they're queued with the parent commit)
             if let csd, let shm = eventLoop.shm,
                newSize != _size || isMaximized != prevMaximized || isInitial {
-                try? csd.update(shm: shm, contentSize: newSize,
+                try? csd.update(shm: shm, contentSize: newSize, title: _title,
                                 maximized: isMaximized, activated: isActivated)
             }
 
