@@ -1,8 +1,8 @@
 import CoreFoundation
 import Foundation
 import SwiftWayland
-import WaylandProtocols
 import SwinitCore
+import WaylandProtocols
 
 @MainActor
 public final class EventLoop: SwinitCore.EventLoopProtocol {
@@ -31,13 +31,7 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
     private weak var keyboardWindow: Window? = nil
     private var currentModifiers: Modifiers = Modifiers()
 
-    // CSD surface routing
-    private struct CSDInfo { weak var window: Window?; let area: CSDArea }
-    private var csdSurfaces: [UInt32: CSDInfo] = [:]
-    private var pointerCSDArea: CSDArea? = nil
-    private var pointerCSDX: Double = 0
-    private var pointerCSDY: Double = 0
-    private var lastButtonSerial: UInt32 = 0
+    var csdRouter = CSDInputRouter()
 
     public init?(controlFlow: ControlFlow = .default) {
         self.controlFlow = controlFlow
@@ -46,13 +40,15 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
 
     public func createWindow(attributes: WindowAttributes) -> Window {
         guard let compositor, let xdgWmBase else {
-            fatalError("createWindow called before event loop globals are ready — call inside resumed()")
+            fatalError(
+                "createWindow called before event loop globals are ready — call inside resumed()")
         }
-        let surface     = try! compositor.createSurface()
-        let xdgSurface  = try! xdgWmBase.getXdgSurface(surface: surface)
-        let toplevel    = try! xdgSurface.getToplevel()
-        let window = Window(eventLoop: self, attributes: attributes,
-                            surface: surface, xdgSurface: xdgSurface, toplevel: toplevel)
+        let surface = try! compositor.createSurface()
+        let xdgSurface = try! xdgWmBase.getXdgSurface(surface: surface)
+        let toplevel = try! xdgSurface.getToplevel()
+        let window = Window(
+            eventLoop: self, attributes: attributes,
+            surface: surface, xdgSurface: xdgSurface, toplevel: toplevel)
         windows[surface.id] = WeakBox(window)
         connection.roundtrip()
         return window
@@ -65,12 +61,12 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
 
         do {
             let globals = try Globals(connection: connection)
-            compositor   = try globals.bind(to: WlCompositor.self,   version: 6...6)
-            xdgWmBase    = try globals.bind(to: XdgWmBase.self,      version: 6...7)
-            seat         = try? globals.bind(to: WlSeat.self,        version: 1...9)
-            decoManager  = try? globals.bind(to: ZxdgDecorationManagerV1.self, version: 1...1)
+            compositor = try globals.bind(to: WlCompositor.self, version: 6...6)
+            xdgWmBase = try globals.bind(to: XdgWmBase.self, version: 6...7)
+            seat = try? globals.bind(to: WlSeat.self, version: 1...9)
+            decoManager = try? globals.bind(to: ZxdgDecorationManagerV1.self, version: 1...1)
             subcompositor = try? globals.bind(to: WlSubcompositor.self, version: 1...1)
-            shm          = try? globals.bind(to: WlShm.self,         version: 1...2)
+            shm = try? globals.bind(to: WlShm.self, version: 1...2)
             self.globals = globals
 
             xdgWmBase!.onEvent = { [weak self] event in
@@ -101,21 +97,11 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
 
     func unregisterWindow(_ surfaceId: UInt32) {
         windows.removeValue(forKey: surfaceId)
-        if pointerWindow?.surface.id == surfaceId { pointerWindow = nil; pointerCSDArea = nil }
+        if pointerWindow?.surface.id == surfaceId {
+            pointerWindow = nil
+            csdRouter.reset()
+        }
         if keyboardWindow?.surface.id == surfaceId { keyboardWindow = nil }
-    }
-
-    // MARK: - CSD surface registration
-
-    func registerCSDSurfaces(for window: Window, csd: CSDLayer) {
-        csdSurfaces[csd.titleBarSurfaceId] = CSDInfo(window: window, area: .titleBar)
-        csdSurfaces[csd.leftSurfaceId]     = CSDInfo(window: window, area: .borderLeft)
-        csdSurfaces[csd.rightSurfaceId]    = CSDInfo(window: window, area: .borderRight)
-        csdSurfaces[csd.bottomSurfaceId]   = CSDInfo(window: window, area: .borderBottom)
-    }
-
-    func unregisterCSDSurfaces(for window: Window) {
-        csdSurfaces = csdSurfaces.filter { $0.value.window !== window }
     }
 
     // MARK: - Input setup
@@ -126,7 +112,7 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
 
     private func setupInput() {
         guard let seat else { return }
-        pointer  = try? seat.getPointer()
+        pointer = try? seat.getPointer()
         keyboard = try? seat.getKeyboard()
         setupPointerEvents()
         setupKeyboardEvents()
@@ -137,15 +123,15 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
             guard let self else { return }
             switch event {
             case .enter(_, let surface, let x, let y):
-                pointerCSDArea = nil
+                csdRouter.reset()
                 if let window = findWindow(bySurfaceId: surface.id) {
                     pointerWindow = window
                     dispatch(.cursorEntered(deviceId: .placeholder), from: window)
-                    dispatch(.cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)), from: window)
-                } else if let info = csdSurfaces[surface.id], let window = info.window {
+                    dispatch(
+                        .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)),
+                        from: window)
+                } else if let (window, _) = csdRouter.enter(surfaceId: surface.id, x: x, y: y) {
                     pointerWindow = window
-                    pointerCSDArea = info.area
-                    pointerCSDX = x; pointerCSDY = y
                 } else {
                     pointerWindow = nil
                 }
@@ -155,32 +141,39 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
                     dispatch(.cursorLeft(deviceId: .placeholder), from: window)
                 }
                 pointerWindow = nil
-                pointerCSDArea = nil
+                csdRouter.reset()
 
             case .motion(_, let x, let y):
-                if pointerCSDArea != nil {
-                    pointerCSDX = x; pointerCSDY = y
+                if csdRouter.activeArea != nil {
+                    csdRouter.move(x: x, y: y)
                 } else if let window = pointerWindow {
-                    dispatch(.cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)), from: window)
+                    dispatch(
+                        .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)),
+                        from: window)
                 }
 
             case .button(let serial, _, let button, let state):
-                lastButtonSerial = serial
-                if let area = pointerCSDArea, let window = pointerWindow, button == 0x110, state == .pressed {
-                    // Left button on a CSD surface
-                    window.handleCSDPress(area: area, x: pointerCSDX, y: pointerCSDY,
-                                         seat: self.seat!, serial: serial)
-                } else if pointerCSDArea == nil, let window = pointerWindow {
+                if let area = csdRouter.activeArea, let window = pointerWindow,
+                    button == 0x110, state == .pressed
+                {
+                    window.handleCSDPress(
+                        area: area, x: csdRouter.x, y: csdRouter.y,
+                        seat: self.seat!, serial: serial)
+                } else if csdRouter.activeArea == nil, let window = pointerWindow {
                     let btn: MouseButton = linuxButton(button)
                     let st: ElementState = state == .pressed ? .pressed : .released
-                    dispatch(.mouseInput(deviceId: .placeholder, state: st, button: btn), from: window)
+                    dispatch(
+                        .mouseInput(deviceId: .placeholder, state: st, button: btn), from: window)
                 }
 
             case .axis(_, let axis, let value):
-                if pointerCSDArea == nil, let window = pointerWindow {
-                    let delta: MouseScrollDelta = axis == .verticalScroll
+                if csdRouter.activeArea == nil, let window = pointerWindow {
+                    let delta: MouseScrollDelta =
+                        axis == .verticalScroll
                         ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
-                    dispatch(.mouseWheel(deviceId: .placeholder, delta: delta, phase: .moved), from: window)
+                    dispatch(
+                        .mouseWheel(deviceId: .placeholder, delta: delta, phase: .moved),
+                        from: window)
                 }
 
             default: break
@@ -207,15 +200,19 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
                 keyboardWindow = nil
             case .key(_, _, let key, let state):
                 if let window = keyboardWindow {
-                    let keyEvent = KeyEvent(physicalKey: key, logicalKey: key,
-                                           state: state == .pressed ? .pressed : .released, isRepeat: false)
+                    let keyEvent = KeyEvent(
+                        physicalKey: key, logicalKey: key,
+                        state: state == .pressed ? .pressed : .released, isRepeat: false)
                     dispatch(.modifiersChanged(currentModifiers), from: window)
-                    dispatch(.keyboardInput(deviceId: .placeholder, event: keyEvent, isSynthetic: false), from: window)
+                    dispatch(
+                        .keyboardInput(deviceId: .placeholder, event: keyEvent, isSynthetic: false),
+                        from: window)
                 }
             case .modifiers(_, let depressed, let latched, let locked, _):
                 let combined = depressed | latched | locked
-                currentModifiers = Modifiers(shift: combined & 1 != 0, control: combined & 4 != 0,
-                                             alt: combined & 8 != 0, superKey: combined & 64 != 0)
+                currentModifiers = Modifiers(
+                    shift: combined & 1 != 0, control: combined & 4 != 0,
+                    alt: combined & 8 != 0, superKey: combined & 64 != 0)
                 if let window = keyboardWindow {
                     dispatch(.modifiersChanged(currentModifiers), from: window)
                 }
@@ -231,7 +228,7 @@ public final class EventLoop: SwinitCore.EventLoopProtocol {
         case 0x112: return .middle
         case 0x113: return .back
         case 0x114: return .forward
-        default:    return .other(UInt16(button & 0xFFFF))
+        default: return .other(UInt16(button & 0xFFFF))
         }
     }
 }

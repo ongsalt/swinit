@@ -85,151 +85,199 @@ final class SHMLayer {
     }
 }
 
+// MARK: - Subsurface pair
+
+/// A WlSurface + WlSubsurface + SHMLayer triple. Handles its own positioning, drawing, and cleanup.
+@MainActor
+final class CSDSubsurface {
+    let surface: WlSurface
+    private let sub: WlSubsurface
+    private let shmLayer = SHMLayer()
+
+    init(compositor: WlCompositor, subcompositor: WlSubcompositor, parent: WlSurface) throws {
+        surface = try compositor.createSurface()
+        sub     = try subcompositor.getSubsurface(surface: surface, parent: parent)
+        try sub.setSync()
+    }
+
+    func render(shm: WlShm, x: Int32, y: Int32, width: Int, height: Int,
+                _ draw: (UnsafeMutableRawPointer, Int, Int) -> Void) throws {
+        try sub.setPosition(x: x, y: y)
+        guard let (ptr, buf) = shmLayer.prepare(shm: shm, width: width, height: height) else { return }
+        draw(ptr, width, height)
+        try surface.attach(buffer: buf, x: 0, y: 0)
+        try surface.damage(x: 0, y: 0, width: Int32(width), height: Int32(height))
+        try surface.commit()
+    }
+
+    func detach() throws {
+        try surface.attach(x: 0, y: 0)
+        try surface.commit()
+    }
+
+    func placeBelow(sibling: WlSurface) throws { try sub.placeBelow(sibling: sibling) }
+
+    deinit {
+        try? sub.destroy()
+        try? surface.destroy()
+    }
+}
+
 // MARK: - CSD Layer
 
 /// Manages all client-side decoration subsurfaces (title bar, borders, shadow).
 @MainActor
 final class CSDLayer {
-    let titleBarSurface: WlSurface
-    private let titleBarSubsurface: WlSubsurface
-    private let leftSurface: WlSurface
-    private let leftSubsurface: WlSubsurface
-    private let rightSurface: WlSurface
-    private let rightSubsurface: WlSubsurface
-    private let bottomSurface: WlSurface
-    private let bottomSubsurface: WlSubsurface
-    private let shadowSurface: WlSurface
-    private let shadowSubsurface: WlSubsurface
+    private let titleBar: CSDSubsurface
+    private let left:     CSDSubsurface
+    private let right:    CSDSubsurface
+    private let bottom:   CSDSubsurface
+    private let shadow:   CSDSubsurface
 
-    private let titleBarLayer = SHMLayer()
-    private let leftLayer = SHMLayer()
-    private let rightLayer = SHMLayer()
-    private let bottomLayer = SHMLayer()
-    private let shadowLayer = SHMLayer()
+    // Button hit-test centers are constant — they depend only on CSDConstants.
+    let buttonRadius:    Double = CSDConstants.buttonRadius
+    let closeCenter:     SIMD2<Double>
+    let minimizeCenter:  SIMD2<Double>
+    let maximizeCenter:  SIMD2<Double>
 
-    // Button centers in title-bar surface-local coords (for hit-testing)
-    private(set) var closeCenter    = SIMD2<Double>.zero
-    private(set) var minimizeCenter = SIMD2<Double>.zero
-    private(set) var maximizeCenter = SIMD2<Double>.zero
-    let buttonRadius: Double = CSDConstants.buttonRadius
+    var titleBarSurfaceId: UInt32 { titleBar.surface.id }
+    var leftSurfaceId:     UInt32 { left.surface.id }
+    var rightSurfaceId:    UInt32 { right.surface.id }
+    var bottomSurfaceId:   UInt32 { bottom.surface.id }
 
-    var titleBarSurfaceId: UInt32 { titleBarSurface.id }
-    var leftSurfaceId:    UInt32 { leftSurface.id }
-    var rightSurfaceId:   UInt32 { rightSurface.id }
-    var bottomSurfaceId:  UInt32 { bottomSurface.id }
+    // nil on first call → forces a full draw; thereafter only changed surfaces are redrawn.
+    private var cache: (size: SIMD2<UInt>, title: String, maximized: Bool, activated: Bool)? = nil
 
     init(compositor: WlCompositor, subcompositor: WlSubcompositor, shm: WlShm,
          parentSurface: WlSurface, contentSize: SIMD2<UInt>) throws {
-        titleBarSurface = try compositor.createSurface()
-        leftSurface     = try compositor.createSurface()
-        rightSurface    = try compositor.createSurface()
-        bottomSurface   = try compositor.createSurface()
-        shadowSurface   = try compositor.createSurface()
+        titleBar = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
+        left     = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
+        right    = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
+        bottom   = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
+        shadow   = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
 
-        titleBarSubsurface = try subcompositor.getSubsurface(surface: titleBarSurface, parent: parentSurface)
-        leftSubsurface     = try subcompositor.getSubsurface(surface: leftSurface,     parent: parentSurface)
-        rightSubsurface    = try subcompositor.getSubsurface(surface: rightSurface,    parent: parentSurface)
-        bottomSubsurface   = try subcompositor.getSubsurface(surface: bottomSurface,   parent: parentSurface)
-        shadowSubsurface   = try subcompositor.getSubsurface(surface: shadowSurface,   parent: parentSurface)
-
-        try shadowSubsurface.placeBelow(sibling: parentSurface)
-
+        try shadow.placeBelow(sibling: parentSurface)
         let emptyRegion = try compositor.createRegion()
-        try shadowSurface.setInputRegion(region: emptyRegion)
+        try shadow.surface.setInputRegion(region: emptyRegion)
         try emptyRegion.destroy()
 
-        try titleBarSubsurface.setSync()
-        try leftSubsurface.setSync()
-        try rightSubsurface.setSync()
-        try bottomSubsurface.setSync()
-        try shadowSubsurface.setSync()
+        let cy  = Double(CSDConstants.titleBarHeight) / 2.0
+        let bR  = CSDConstants.buttonRadius
+        let bSp = CSDConstants.buttonSpacing
+        let bML = CSDConstants.buttonMarginLeft
+        let cx0 = bML + bR
+        closeCenter    = SIMD2(cx0, cy)
+        minimizeCenter = SIMD2(cx0 + 2 * bR + bSp, cy)
+        maximizeCenter = SIMD2(cx0 + 4 * bR + 2 * bSp, cy)
 
         try update(shm: shm, contentSize: contentSize, title: "", maximized: false, activated: true)
     }
 
     func update(shm: WlShm, contentSize: SIMD2<UInt>, title: String,
                 maximized: Bool, activated: Bool) throws {
+        let prev = cache
+        cache = (contentSize, title, maximized, activated)
+
+        let sizeChanged   = prev?.size     != contentSize
+        let titleBarDirty = sizeChanged
+                         || prev?.title     != title
+                         || prev?.activated != activated
+                         || prev?.maximized != maximized
+        let bordersDirty  = sizeChanged || prev?.maximized != maximized
+        guard titleBarDirty || bordersDirty else { return }
+
         let cW = max(Int(contentSize.x), 1)
         let cH = max(Int(contentSize.y), 1)
         let bW = Int(CSDConstants.borderWidth)
         let tH = Int(CSDConstants.titleBarHeight)
         let sM = Int(CSDConstants.shadowMargin)
 
-        // Title bar (always visible with CSD)
-        let tbW = cW + (maximized ? 0 : 2 * bW)
-        try titleBarSubsurface.setPosition(x: maximized ? 0 : -Int32(bW), y: -Int32(tH))
-        if let (ptr, buf) = titleBarLayer.prepare(shm: shm, width: tbW, height: tH) {
-            cairoDrawTitleBar(ptr, width: tbW, height: tH,
-                              title: title, activated: activated,
-                              roundTopCorners: !maximized)
-            let cy = Double(tH) / 2.0
-            let bR  = CSDConstants.buttonRadius
-            let bSp = CSDConstants.buttonSpacing
-            let bML = CSDConstants.buttonMarginLeft
-            closeCenter    = SIMD2(bML + bR, cy)
-            minimizeCenter = SIMD2(closeCenter.x    + 2 * bR + bSp, cy)
-            maximizeCenter = SIMD2(minimizeCenter.x + 2 * bR + bSp, cy)
-            try titleBarSurface.attach(buffer: buf, x: 0, y: 0)
-            try titleBarSurface.damage(x: 0, y: 0, width: Int32(tbW), height: Int32(tH))
-            try titleBarSurface.commit()
+        if titleBarDirty {
+            let tbW = cW + (maximized ? 0 : 2 * bW)
+            try titleBar.render(shm: shm,
+                                x: maximized ? 0 : -Int32(bW), y: -Int32(tH),
+                                width: tbW, height: tH) { ptr, w, h in
+                cairoDrawTitleBar(ptr, width: w, height: h,
+                                  title: title, activated: activated,
+                                  roundTopCorners: !maximized)
+            }
         }
 
-        if maximized {
-            for s in [leftSurface, rightSurface, bottomSurface, shadowSurface] {
-                try s.attach(x: 0, y: 0)
-                try s.commit()
-            }
-        } else {
-            // Left border
-            try leftSubsurface.setPosition(x: -Int32(bW), y: 0)
-            if let (ptr, buf) = leftLayer.prepare(shm: shm, width: bW, height: cH) {
-                cairoSolidFill(ptr, width: bW, height: cH, rgba: CSDConstants.borderRGBA)
-                try leftSurface.attach(buffer: buf, x: 0, y: 0)
-                try leftSurface.damage(x: 0, y: 0, width: Int32(bW), height: Int32(cH))
-                try leftSurface.commit()
-            }
-
-            // Right border
-            try rightSubsurface.setPosition(x: Int32(cW), y: 0)
-            if let (ptr, buf) = rightLayer.prepare(shm: shm, width: bW, height: cH) {
-                cairoSolidFill(ptr, width: bW, height: cH, rgba: CSDConstants.borderRGBA)
-                try rightSurface.attach(buffer: buf, x: 0, y: 0)
-                try rightSurface.damage(x: 0, y: 0, width: Int32(bW), height: Int32(cH))
-                try rightSurface.commit()
-            }
-
-            // Bottom border
-            let botW = cW + 2 * bW
-            try bottomSubsurface.setPosition(x: -Int32(bW), y: Int32(cH))
-            if let (ptr, buf) = bottomLayer.prepare(shm: shm, width: botW, height: bW) {
-                cairoSolidFill(ptr, width: botW, height: bW, rgba: CSDConstants.borderRGBA)
-                try bottomSurface.attach(buffer: buf, x: 0, y: 0)
-                try bottomSurface.damage(x: 0, y: 0, width: Int32(botW), height: Int32(bW))
-                try bottomSurface.commit()
-            }
-
-            // Shadow
-            let shW = cW + 2 * (bW + sM)
-            let shH = cH + tH + bW + 2 * sM
-            try shadowSubsurface.setPosition(x: -Int32(bW + sM), y: -Int32(tH + sM))
-            if let (ptr, buf) = shadowLayer.prepare(shm: shm, width: shW, height: shH) {
-                cairoDrawShadow(ptr, width: shW, height: shH,
-                                innerX: sM, innerY: sM,
-                                innerW: cW + 2 * bW, innerH: cH + tH + bW,
-                                blur: sM, cornerR: CSDConstants.cornerRadius)
-                try shadowSurface.attach(buffer: buf, x: 0, y: 0)
-                try shadowSurface.damage(x: 0, y: 0, width: Int32(shW), height: Int32(shH))
-                try shadowSurface.commit()
+        if bordersDirty {
+            if maximized {
+                try left.detach(); try right.detach(); try bottom.detach(); try shadow.detach()
+            } else {
+                try left.render(shm: shm, x: -Int32(bW), y: 0, width: bW, height: cH) { ptr, w, h in
+                    cairoSolidFill(ptr, width: w, height: h, rgba: CSDConstants.borderRGBA)
+                }
+                try right.render(shm: shm, x: Int32(cW), y: 0, width: bW, height: cH) { ptr, w, h in
+                    cairoSolidFill(ptr, width: w, height: h, rgba: CSDConstants.borderRGBA)
+                }
+                let botW = cW + 2 * bW
+                try bottom.render(shm: shm, x: -Int32(bW), y: Int32(cH),
+                                  width: botW, height: bW) { ptr, w, h in
+                    cairoSolidFill(ptr, width: w, height: h, rgba: CSDConstants.borderRGBA)
+                }
+                let shW = cW + 2 * (bW + sM)
+                let shH = cH + tH + bW + 2 * sM
+                try shadow.render(shm: shm,
+                                  x: -Int32(bW + sM), y: -Int32(tH + sM),
+                                  width: shW, height: shH) { ptr, w, h in
+                    cairoDrawShadow(ptr, width: w, height: h,
+                                    innerX: sM, innerY: sM,
+                                    innerW: cW + 2 * bW, innerH: cH + tH + bW,
+                                    blur: sM, cornerR: CSDConstants.cornerRadius)
+                }
             }
         }
     }
+}
 
-    deinit {
-        try? titleBarSubsurface.destroy(); try? titleBarSurface.destroy()
-        try? leftSubsurface.destroy();     try? leftSurface.destroy()
-        try? rightSubsurface.destroy();    try? rightSurface.destroy()
-        try? bottomSubsurface.destroy();   try? bottomSurface.destroy()
-        try? shadowSubsurface.destroy();   try? shadowSurface.destroy()
+// MARK: - CSD input router
+
+/// Tracks which pointer events land on CSD subsurfaces and provides the current hover state.
+@MainActor
+struct CSDInputRouter: ~Copyable {
+    private struct Entry {
+        weak var window: Window?
+        let area: CSDArea
+    }
+    private var surfaces: [UInt32: Entry] = [:]
+    private(set) weak var activeWindow: Window? = nil
+    private(set) var activeArea: CSDArea? = nil
+    private(set) var x: Double = 0
+    private(set) var y: Double = 0
+
+    mutating func register(window: Window, csd: CSDLayer) {
+        surfaces[csd.titleBarSurfaceId] = Entry(window: window, area: .titleBar)
+        surfaces[csd.leftSurfaceId]     = Entry(window: window, area: .borderLeft)
+        surfaces[csd.rightSurfaceId]    = Entry(window: window, area: .borderRight)
+        surfaces[csd.bottomSurfaceId]   = Entry(window: window, area: .borderBottom)
+    }
+
+    mutating func unregister(window: Window) {
+        surfaces = surfaces.filter { $0.value.window !== window }
+        if activeWindow === window { reset() }
+    }
+
+    /// Returns `(window, area)` if `surfaceId` belongs to a CSD subsurface, else `nil`.
+    mutating func enter(surfaceId: UInt32, x: Double, y: Double) -> (Window, CSDArea)? {
+        guard let entry = surfaces[surfaceId], let window = entry.window else { return nil }
+        activeWindow = window
+        activeArea = entry.area
+        self.x = x
+        self.y = y
+        return (window, entry.area)
+    }
+
+    mutating func move(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
+
+    mutating func reset() {
+        activeWindow = nil
+        activeArea = nil
     }
 }
 

@@ -228,7 +228,7 @@ public final class Window: SwinitCore.WindowProtocol {
         else { return }
 
         csd = layer
-        eventLoop.registerCSDSurfaces(for: self, csd: layer)
+        eventLoop.csdRouter.register(window: self, csd: layer)
 
         // Set initial geometry (takes effect on next parent commit)
         let bW = CSDConstants.borderWidth
@@ -241,7 +241,7 @@ public final class Window: SwinitCore.WindowProtocol {
 
     private func destroyCSD() {
         guard csd != nil else { return }
-        eventLoop.unregisterCSDSurfaces(for: self)
+        eventLoop.csdRouter.unregister(window: self)
         csd = nil
         // Reset geometry to content-only bounds
         try? xdgSurface.setWindowGeometry(
@@ -251,7 +251,7 @@ public final class Window: SwinitCore.WindowProtocol {
 
     deinit {
         eventLoop.unregisterWindow(surface.id)
-        eventLoop.unregisterCSDSurfaces(for: self)
+        eventLoop.csdRouter.unregister(window: self)
         try? toplevelDeco?.destroy()
         try? toplevel.destroy()
         try? xdgSurface.destroy()
