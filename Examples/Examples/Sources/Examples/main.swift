@@ -6,6 +6,8 @@ import SwiftWayland
 import WaylandProtocols
 import Glibc
 
+// Minimal SHM renderer — draws a colour gradient to prove the pipeline works.
+// Real apps would use Vulkan/EGL/wgpu and never touch WlShm themselves.
 final class ShmRenderer: @unchecked Sendable {
     private let shm: WlShm
     private var pool: WlShmPool?
@@ -22,6 +24,7 @@ final class ShmRenderer: @unchecked Sendable {
     }
 
     func render(to surface: WlSurface, width: Int, height: Int) {
+        guard width > 0, height > 0 else { return }
         let stride = width * 4
         let needed = stride * height
         if needed != mappedSize { recreate(width: width, height: height, stride: stride, size: needed) }
@@ -44,7 +47,8 @@ final class ShmRenderer: @unchecked Sendable {
         guard ftruncate(fd, off_t(size)) == 0 else { close(fd); return }
         let fh = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         let p = try? shm.createPool(fd: fh, size: Int32(size))
-        let b = try? p?.createBuffer(offset: 0, width: Int32(width), height: Int32(height), stride: Int32(stride), format: WlShm.Format.xrgb8888)
+        let b = try? p?.createBuffer(offset: 0, width: Int32(width), height: Int32(height),
+                                      stride: Int32(stride), format: .xrgb8888)
         let mapped = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
         _ = fh
         pool = p; buffer = b; mappedSize = size
@@ -79,14 +83,17 @@ final class App: Responder {
         window = eventLoop.createWindow(attributes: .init(title: "swinit example"))
 
         #if canImport(SwiftWayland)
-        if let shm = try? eventLoop.globals?.bind(to: WlShm.self, version: 2...2) {
+        // eventLoop.shm is already bound by EventLoop.attach(); no need to re-bind.
+        if let shm = eventLoop.shm {
             renderer = ShmRenderer(shm: shm)
         }
         #endif
 
         #if canImport(SwinitWin32)
-        window?.drawUnderTitleBar = true
-        window?.backdropStyle = .mica
+        // titleBarAppearance follows the system theme automatically — no override needed.
+        // Opt into Mica: requires extending the DWM frame into the client area.
+        // window?.drawUnderTitleBar = true
+        // window?.backdropStyle = .mica
         #endif
     }
 
@@ -94,17 +101,22 @@ final class App: Responder {
         switch event {
         case .resized(let size, _):
             #if canImport(SwiftWayland)
-            if let surface = window.surface, let renderer {
-                renderer.render(to: surface, width: Int(size.width), height: Int(size.height))
-            }
+            renderer?.render(to: window.surface,
+                             width: Int(size.width), height: Int(size.height))
             #endif
+
+        case .stateChanged(let state):
+            print("state →", state)
+
+        case .focused(let focused):
+            print(focused ? "focused" : "unfocused")
 
         case .closeRequested:
             self.window = nil
             eventLoop.stop()
 
         default:
-            break
+            print(event)
         }
     }
 }

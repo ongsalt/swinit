@@ -9,14 +9,11 @@ public final class Window: SwinitCore.WindowProtocol {
     public nonisolated(unsafe) private(set) var hInstance: HINSTANCE! = nil
     private unowned let eventLoop: EventLoop
 
-    private let _title: WinString
-    private let _windowClass: WinString
-
     public var title: String {
-        get { _title.string }
-        set {
-            _title.string = newValue
-            SetWindowTextW(handle, _title.lpcwstr)
+        didSet {
+            title.withCString(encodedAs: UTF16.self) { ptr in
+                SetWindowTextW(handle, ptr)
+            }
         }
     }
 
@@ -24,10 +21,16 @@ public final class Window: SwinitCore.WindowProtocol {
         get {
             var rect = RECT()
             GetWindowRect(handle, &rect)
-            return SIMD2<UInt>(UInt(max(0, rect.right - rect.left)), UInt(max(0, rect.bottom - rect.top)))
+            return SIMD2<UInt>(
+                UInt(max(0, rect.right - rect.left)),
+                UInt(max(0, rect.bottom - rect.top))
+            )
         }
         set {
-            SetWindowPos(handle, nil, 0, 0, Int32(newValue.x), Int32(newValue.y), UINT(SWP_NOMOVE | SWP_NOZORDER))
+            SetWindowPos(
+                handle, nil, 0, 0, Int32(newValue.x), Int32(newValue.y),
+                UINT(SWP_NOMOVE | SWP_NOZORDER)
+            )
         }
     }
 
@@ -48,11 +51,16 @@ public final class Window: SwinitCore.WindowProtocol {
         }
     }
 
+    /// Follow the system dark/light mode for the title bar.
+    /// Changing this updates the title bar immediately.
+    public var titleBarAppearance: TitleBarAppearance = .system {
+        didSet { applyTitleBarAppearance() }
+    }
+
     init(eventLoop: EventLoop, attributes: WindowAttributes) {
         self.eventLoop = eventLoop
         self.hInstance = GetModuleHandleW(nil)!
-        self._title = WinString(attributes.title)
-        self._windowClass = Self.windowClass
+        self.title = attributes.title
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
@@ -60,36 +68,69 @@ public final class Window: SwinitCore.WindowProtocol {
         if attributes.noRedirectionBitmap { exStyle |= UInt32(WS_EX_NOREDIRECTIONBITMAP) }
         if attributes.transparency { exStyle |= UInt32(WS_EX_LAYERED) }
 
-        handle = CreateWindowExW(
-            exStyle,
-            _windowClass.lpcwstr, _title.lpcwstr,
-            UInt32(WS_VISIBLE) | WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, CW_USEDEFAULT,
-            Int32(attributes.size.x), Int32(attributes.size.y),
-            nil, nil, hInstance, selfPtr)!
+        Self.windowClass.withCString(encodedAs: UTF16.self) { windowClass in
+            title.withCString(encodedAs: UTF16.self) { title in
+                handle = CreateWindowExW(
+                    exStyle,
+                    windowClass,
+                    title,
+                    WS_OVERLAPPEDWINDOW,
+                    CW_USEDEFAULT,
+                    CW_USEDEFAULT,
+                    Int32(attributes.size.x),
+                    Int32(attributes.size.y),
+                    nil,
+                    nil,
+                    hInstance,
+                    selfPtr
+                )!
+            }
+        }
+
+        // wtf ms
+        SetWindowPos(
+            handle, nil, 0, 0, 0, 0,
+            UInt32(SWP_NOSIZE) | UInt32(SWP_NOMOVE) | UInt32(SWP_DRAWFRAME) | UInt32(SWP_SHOWWINDOW)
+        )
+    }
+
+    private func applyTitleBarAppearance() {
+        var isDark: WindowsBool = titleBarAppearance.resolvedDark ? true : false
+        // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Win11 documented); 19 on early Win10 previews
+        if DwmSetWindowAttribute(handle, 20, &isDark, DWORD(MemoryLayout<WindowsBool>.size)) != S_OK
+        {
+            DwmSetWindowAttribute(handle, 19, &isDark, DWORD(MemoryLayout<WindowsBool>.size))
+        }
     }
 
     // MARK: - Window class
 
-    nonisolated(unsafe) static let windowClass: WinString = {
+    static let windowClass: String = {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-        let name = WinString("swinit_default")
-        var wc = WNDCLASSW(
-            style: UInt32(CS_HREDRAW | CS_VREDRAW),
-            lpfnWndProc: globalWndProc,
-            cbClsExtra: 0, cbWndExtra: 0,
-            hInstance: GetModuleHandleW(nil),
-            hIcon: nil,
-            hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),
-            hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),
-            lpszMenuName: nil,
-            lpszClassName: name.lpcwstr)
+        let name = "swinit_default"
 
-        if RegisterClassW(&wc) == 0 {
-            let err = GetLastError()
-            // ERROR_CLASS_ALREADY_EXISTS is fine (e.g. multiple EventLoop instances)
-            guard err == DWORD(ERROR_CLASS_ALREADY_EXISTS) else {
-                fatalError("RegisterClassW failed: \(err)")
+        name.withCString(encodedAs: UTF16.self) { namePtr in
+            var wc = WNDCLASSEXW(
+                cbSize: UInt32(MemoryLayout<WNDCLASSEXA>.size),
+                style: UInt32(CS_HREDRAW | CS_VREDRAW),
+                lpfnWndProc: globalWndProc,
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: GetModuleHandleW(nil),
+                hIcon: nil,
+                hCursor: LoadCursorW(nil, UnsafePointer(bitPattern: 32512)),
+                hbrBackground: UnsafeMutablePointer(bitPattern: Int(COLOR_WINDOWFRAME)),
+                lpszMenuName: nil,
+                lpszClassName: namePtr,
+                hIconSm: nil,
+            )
+
+            if RegisterClassExW(&wc) == 0 {
+                let err = GetLastError()
+                // ERROR_CLASS_ALREADY_EXISTS is fine (e.g. multiple EventLoop instances)
+                guard err == DWORD(ERROR_CLASS_ALREADY_EXISTS) else {
+                    fatalError("RegisterClassW failed: \(err)")
+                }
             }
         }
         return name
@@ -105,7 +146,8 @@ public final class Window: SwinitCore.WindowProtocol {
         switch message {
         case UINT(WM_ENTERSIZEMOVE):
             isResizing = true
-            currentHeartbeatTimer = SetTimer(handle, UInt64.random(in: .min ... .max), EventLoop.tickIntervalMs, nil)
+            currentHeartbeatTimer = SetTimer(
+                handle, UInt64.random(in: .min ... .max), EventLoop.tickIntervalMs, nil)
             return 0
 
         case UINT(WM_TIMER) where currentHeartbeatTimer != nil:
@@ -114,10 +156,14 @@ public final class Window: SwinitCore.WindowProtocol {
 
         case UINT(WM_EXITSIZEMOVE):
             isResizing = false
-            if let t = currentHeartbeatTimer { KillTimer(handle, t) }
+            if let t = currentHeartbeatTimer {
+                KillTimer(handle, t)
+            }
             var rect = RECT()
             GetClientRect(handle, &rect)
-            let size = PhysicalSize(width: UInt32(max(0, rect.right - rect.left)), height: UInt32(max(0, rect.bottom - rect.top)))
+            let size = PhysicalSize(
+                width: UInt32(max(0, rect.right - rect.left)),
+                height: UInt32(max(0, rect.bottom - rect.top)))
             eventLoop.dispatch(.resized(size: size, isFinal: true), from: self)
             return 0
 
@@ -127,7 +173,8 @@ public final class Window: SwinitCore.WindowProtocol {
             return 0
 
         case UINT(WM_MOVE):
-            let pos = PhysicalPosition(Int32(Int16(bitPattern: LOWORD(lParam))), Int32(Int16(bitPattern: HIWORD(lParam))))
+            let pos = PhysicalPosition(
+                Int32(Int16(bitPattern: LOWORD(lParam))), Int32(Int16(bitPattern: HIWORD(lParam))))
             eventLoop.dispatch(.moved(pos), from: self)
             return 0
 
@@ -148,9 +195,13 @@ public final class Window: SwinitCore.WindowProtocol {
             return 0
 
         case UINT(WM_MOUSEMOVE):
-            let pos = PhysicalPosition(Double(Int16(bitPattern: LOWORD(lParam))), Double(Int16(bitPattern: HIWORD(lParam))))
+            let pos = PhysicalPosition(
+                Double(Int16(bitPattern: LOWORD(lParam))), Double(Int16(bitPattern: HIWORD(lParam)))
+            )
             eventLoop.dispatch(.cursorMoved(deviceId: .placeholder, position: pos), from: self)
-            var tme = TRACKMOUSEEVENT(cbSize: UInt32(MemoryLayout<TRACKMOUSEEVENT>.size), dwFlags: UInt32(TME_LEAVE), hwndTrack: handle, dwHoverTime: 0)
+            var tme = TRACKMOUSEEVENT(
+                cbSize: UInt32(MemoryLayout<TRACKMOUSEEVENT>.size), dwFlags: UInt32(TME_LEAVE),
+                hwndTrack: handle, dwHoverTime: 0)
             TrackMouseEvent(&tme)
             return 0
 
@@ -159,33 +210,55 @@ public final class Window: SwinitCore.WindowProtocol {
             return 0
 
         case UINT(WM_LBUTTONDOWN), UINT(WM_RBUTTONDOWN), UINT(WM_MBUTTONDOWN), UINT(WM_XBUTTONDOWN):
-            eventLoop.dispatch(.mouseInput(deviceId: .placeholder, state: .pressed, button: mouseButton(from: message, wParam: wParam)), from: self)
+            eventLoop.dispatch(
+                .mouseInput(
+                    deviceId: .placeholder, state: .pressed,
+                    button: mouseButton(from: message, wParam: wParam)), from: self)
             return 0
 
         case UINT(WM_LBUTTONUP), UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
-            eventLoop.dispatch(.mouseInput(deviceId: .placeholder, state: .released, button: mouseButton(from: message, wParam: wParam)), from: self)
+            eventLoop.dispatch(
+                .mouseInput(
+                    deviceId: .placeholder, state: .released,
+                    button: mouseButton(from: message, wParam: wParam)), from: self)
             return 0
 
         case UINT(WM_MOUSEWHEEL):
-            eventLoop.dispatch(.mouseWheel(deviceId: .placeholder, delta: wheelDelta(hiword: HIWORD(wParam), horizontal: false), phase: .moved), from: self)
+            eventLoop.dispatch(
+                .mouseWheel(
+                    deviceId: .placeholder,
+                    delta: wheelDelta(hiword: HIWORD(wParam), horizontal: false), phase: .moved),
+                from: self)
             return 0
 
         case UINT(WM_MOUSEHWHEEL):
-            eventLoop.dispatch(.mouseWheel(deviceId: .placeholder, delta: wheelDelta(hiword: HIWORD(wParam), horizontal: true), phase: .moved), from: self)
+            eventLoop.dispatch(
+                .mouseWheel(
+                    deviceId: .placeholder,
+                    delta: wheelDelta(hiword: HIWORD(wParam), horizontal: true), phase: .moved),
+                from: self)
             return 0
 
         case UINT(WM_KEYDOWN), UINT(WM_SYSKEYDOWN):
             let physicalKey = UInt32((lParam >> 16) & 0xFF)
-            let event = KeyEvent(physicalKey: physicalKey, logicalKey: UInt32(wParam), state: .pressed, isRepeat: (lParam & (1 << 30)) != 0)
+            let event = KeyEvent(
+                physicalKey: physicalKey, logicalKey: UInt32(wParam), state: .pressed,
+                isRepeat: (lParam & (1 << 30)) != 0)
             eventLoop.dispatch(.modifiersChanged(captureModifiers()), from: self)
-            eventLoop.dispatch(.keyboardInput(deviceId: .placeholder, event: event, isSynthetic: false), from: self)
+            eventLoop.dispatch(
+                .keyboardInput(deviceId: .placeholder, event: event, isSynthetic: false), from: self
+            )
             return 0
 
         case UINT(WM_KEYUP), UINT(WM_SYSKEYUP):
             let physicalKey = UInt32((lParam >> 16) & 0xFF)
-            let event = KeyEvent(physicalKey: physicalKey, logicalKey: UInt32(wParam), state: .released, isRepeat: false)
+            let event = KeyEvent(
+                physicalKey: physicalKey, logicalKey: UInt32(wParam), state: .released,
+                isRepeat: false)
             eventLoop.dispatch(.modifiersChanged(captureModifiers()), from: self)
-            eventLoop.dispatch(.keyboardInput(deviceId: .placeholder, event: event, isSynthetic: false), from: self)
+            eventLoop.dispatch(
+                .keyboardInput(deviceId: .placeholder, event: event, isSynthetic: false), from: self
+            )
             return 0
 
         case UINT(WM_ERASEBKGND):
@@ -204,7 +277,10 @@ public final class Window: SwinitCore.WindowProtocol {
     }
 
     public func requestRedraw() { InvalidateRect(handle, nil, false) }
-    public func focus() { SetForegroundWindow(handle); SetFocus(handle) }
+    public func focus() {
+        SetForegroundWindow(handle)
+        SetFocus(handle)
+    }
 }
 
 // MARK: - Helpers
@@ -244,11 +320,16 @@ private func captureModifiers() -> Modifiers {
 
 private func getWindow(_ hWnd: HWND) -> Unmanaged<Window>? {
     let userData = UInt(GetWindowLongPtrW(hWnd, Int32(GWLP_USERDATA)))
-    guard let ptr = UnsafeRawPointer(bitPattern: userData) else { return nil }
-    return Unmanaged.fromOpaque(ptr)
+    guard let ptr = UnsafeRawPointer(bitPattern: userData) else {
+        return nil
+    }
+    let instance = Unmanaged<Window>.fromOpaque(ptr)
+    return instance
 }
 
-private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM) -> LRESULT {
+private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ lParam: LPARAM)
+    -> LRESULT
+{
     switch message {
     case UINT(WM_NCCREATE):
         let cs = UnsafeMutablePointer<CREATESTRUCTW>(bitPattern: UInt(lParam))!
@@ -256,6 +337,7 @@ private func globalWndProc(_ hWnd: HWND?, _ message: UINT, _ wParam: WPARAM, _ l
         return DefWindowProcW(hWnd, message, wParam, lParam)
     default:
         guard let window = getWindow(hWnd!) else {
+            // print("Cannot get instance for hwnd=\(hWnd), message=\(message)")
             return DefWindowProcW(hWnd, message, wParam, lParam)
         }
         // Safe: Win32 message pump always runs on the main thread.

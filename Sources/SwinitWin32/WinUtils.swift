@@ -29,3 +29,4 @@ func LOWORD(_ dword: LPARAM) -> UInt16 {
 func HIWORD(_ dword: LPARAM) -> UInt16 {
   HIWORD(UInt32(dword))
 }
+
