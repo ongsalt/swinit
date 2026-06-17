@@ -79,7 +79,6 @@ final class Demo: AppDelegate {
             #if os(Linux)
             // Register a frame callback before presenting so the compositor
             // can throttle us to the display refresh rate.
-            win.prePresentNotify()
             renderers[win.id]?.render(
                 to: win.surface,
                 width: Int(size.width),
@@ -88,7 +87,6 @@ final class Demo: AppDelegate {
 
         case .redrawRequested:
             #if os(Linux)
-            win.prePresentNotify()
             renderers[win.id]?.render(
                 to: win.surface,
                 width: Int(win.size.width),

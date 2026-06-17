@@ -19,26 +19,6 @@
       "target": "SwinitTest",
       "configuration": "release",
       "preLaunchTask": "swift: Build Release SwinitTest"
-    },
-    {
-      "type": "swift",
-      "request": "launch",
-      "args": [],
-      "cwd": "${workspaceFolder:swinit}",
-      "name": "Debug SwinitExample",
-      "target": "SwinitExample",
-      "configuration": "debug",
-      "preLaunchTask": "swift: Build Debug SwinitExample"
-    },
-    {
-      "type": "swift",
-      "request": "launch",
-      "args": [],
-      "cwd": "${workspaceFolder:swinit}",
-      "name": "Release SwinitExample",
-      "target": "SwinitExample",
-      "configuration": "release",
-      "preLaunchTask": "swift: Build Release SwinitExample"
     }
   ]
 }
