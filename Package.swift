@@ -37,7 +37,7 @@ let package = Package(
                 .product(name: "WaylandClient", package: "SwiftWayland"),
                 "SwinitCore",
                 .target(name: "CCairo", condition: .when(platforms: [.linux], traits: ["WaylandCSD"])),
-            ]
+            ],
         ),
 
         .target(
@@ -52,7 +52,7 @@ let package = Package(
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux])),
                 .product(name: "WaylandClient", package: "SwiftWayland",
                          condition: .when(platforms: [.linux])),
-            ]
+            ],
         ),
         .testTarget(
             name: "swinitTests",

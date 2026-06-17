@@ -1,3 +1,4 @@
+#if WaylandCSD
 import CCairo
 import Foundation
 import Glibc
@@ -436,3 +437,4 @@ private func cairoDrawShadow(
         cairo_fill(cr)
     }
 }
+#endif

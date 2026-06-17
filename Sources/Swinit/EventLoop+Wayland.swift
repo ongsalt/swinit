@@ -70,7 +70,9 @@
             surfaceToWindow = surfaceToWindow.filter { $0.value != id }
             if pointerWindow?.id == id {
                 pointerWindow = nil
+                #if WaylandCSD
                 csdRouter.reset()
+                #endif
             }
             if keyboardWindow?.id == id { keyboardWindow = nil }
         }
@@ -94,6 +96,7 @@
                 switch event {
                 case .enter(_, let surface, let x, let y):
                     guard let surface else { return }
+                    #if WaylandCSD
                     csdRouter.reset()
                     if let win = findWindow(bySurfaceId: surface.id) {
                         pointerWindow = win
@@ -105,6 +108,16 @@
                     } else {
                         pointerWindow = nil
                     }
+                    #else
+                    if let win = findWindow(bySurfaceId: surface.id) {
+                        pointerWindow = win
+                        win.dispatch(.cursorEntered(deviceId: .placeholder))
+                        win.dispatch(
+                            .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)))
+                    } else {
+                        pointerWindow = nil
+                    }
+                    #endif
 
                 case .leave(_, let surface):
                     guard let surface else { return }
@@ -112,17 +125,27 @@
                         win.dispatch(.cursorLeft(deviceId: .placeholder))
                     }
                     pointerWindow = nil
+                    #if WaylandCSD
                     csdRouter.reset()
+                    #endif
 
                 case .motion(_, let x, let y):
+                    #if WaylandCSD
                     if csdRouter.activeArea != nil {
                         csdRouter.move(x: x, y: y)
                     } else if let win = pointerWindow {
                         win.dispatch(
                             .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)))
                     }
+                    #else
+                    if let win = pointerWindow {
+                        win.dispatch(
+                            .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)))
+                    }
+                    #endif
 
                 case .button(let serial, _, let button, let state):
+                    #if WaylandCSD
                     if let area = csdRouter.activeArea, let win = pointerWindow,
                         button == 0x110, state == .pressed
                     {
@@ -136,15 +159,30 @@
                                 state: state == .pressed ? .pressed : .released,
                                 button: linuxButton(button)))
                     }
+                    #else
+                    if let win = pointerWindow {
+                        win.dispatch(
+                            .mouseInput(
+                                deviceId: .placeholder,
+                                state: state == .pressed ? .pressed : .released,
+                                button: linuxButton(button)))
+                    }
+                    _ = serial
+                    #endif
 
                 case .axis(_, let axis, let value):
+                    let delta: MouseScrollDelta =
+                        axis == .verticalScroll
+                        ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
+                    #if WaylandCSD
                     if csdRouter.activeArea == nil, let win = pointerWindow {
-                        let delta: MouseScrollDelta =
-                            axis == .verticalScroll
-                            ? .pixel(x: 0, y: -value) : .pixel(x: -value, y: 0)
-                        win.dispatch(
-                            .mouseWheel(deviceId: .placeholder, delta: delta, phase: .moved))
+                        win.dispatch(.mouseWheel(deviceId: .placeholder, delta: delta, phase: .moved))
                     }
+                    #else
+                    if let win = pointerWindow {
+                        win.dispatch(.mouseWheel(deviceId: .placeholder, delta: delta, phase: .moved))
+                    }
+                    #endif
 
                 default: break
                 }
@@ -160,13 +198,11 @@
                     if let win = findWindow(bySurfaceId: surface.id) {
                         keyboardWindow = win
                         win.dispatch(.focused(true))
-                        win.setActivated(true)
                     }
                 case .leave(_, let surface):
                     guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         win.dispatch(.focused(false))
-                        win.setActivated(false)
                     }
                     keyboardWindow = nil
                 case .key(_, _, let key, let state):
@@ -208,6 +244,7 @@
 
     // MARK: - CSD input router
 
+    #if WaylandCSD
     @MainActor
     struct CSDInputRouter: ~Copyable {
         private struct Entry {
@@ -251,5 +288,6 @@
             activeArea = nil
         }
     }
+    #endif
 
 #endif

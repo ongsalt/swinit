@@ -9,12 +9,14 @@
 
         func platformSetTitle(_ title: String) {
             try? toplevel.setTitle(title)
+            #if WaylandCSD
             if let csd, let shm = eventLoop?.waylandShm {
                 try? csd.update(
                     shm: shm, contentSize: _size, title: title,
                     maximized: isMaximized, activated: isActivated)
                 try? surface.commit()
             }
+            #endif
         }
 
         func platformRequestRedraw() {
@@ -37,10 +39,12 @@
         func platformDestroy() {
             toplevel.onEvent = nil
             xdgSurface.onEvent = nil
+            #if WaylandCSD
             if csd != nil {
                 eventLoop?.csdRouter.unregister(window: self)
                 csd = nil
             }
+            #endif
             try? toplevelDeco?.destroy()
             try? toplevel.destroy()
             try? xdgSurface.destroy()
@@ -61,6 +65,7 @@
             // No commit here — the caller's buffer commit activates this callback.
         }
 
+        #if WaylandCSD
         func setActivated(_ active: Bool) {
             guard active != isActivated, let csd, let shm = eventLoop?.waylandShm else { return }
             isActivated = active
@@ -69,7 +74,9 @@
                 maximized: isMaximized, activated: active)
             try? surface.commit()
         }
+        #endif
 
+        #if WaylandCSD
         func handleCSDPress(area: CSDArea, x: Double, y: Double, seat: WlSeat, serial: UInt32) {
             switch area {
             case .titleBar:
@@ -121,13 +128,16 @@
                 }
             }
         }
+        #endif
 
         func setupCallbacks() {
             toplevel.onEvent = { [weak self] event in
                 guard let self else { return }
                 switch event {
                 case .configure(let width, let height, let states):
-                    let newMax = csdParseStates(states).contains(1)
+                    let parsedStates = parseToplevelStates(states)
+                    let newMax = parsedStates.contains(1)   // XDG_TOPLEVEL_STATE_MAXIMIZED
+                    pendingIsActivated = parsedStates.contains(4)  // XDG_TOPLEVEL_STATE_ACTIVATED
                     if width > 0 && height > 0 {
                         if csd != nil {
                             // Compositor sends window-geometry size (content + CSD frame).
@@ -156,24 +166,30 @@
                 guard let self, case .configure(let serial) = event else { return }
 
                 let prevMaximized = isMaximized
+                let prevActivated = isActivated
                 isMaximized = pendingIsMaximized
+                isActivated = pendingIsActivated
                 let newSize = pendingToplevelSize == .zero ? _size : pendingToplevelSize
                 let isInitial = !configured
                 configured = true
 
+                #if WaylandCSD
                 if let mode = pendingDecoMode {
                     pendingDecoMode = nil
                     if mode == .clientSide { ensureCSD() } else { destroyCSD() }
                 }
 
                 if let csd, let shm = eventLoop?.waylandShm,
-                    newSize != _size || isMaximized != prevMaximized || isInitial
+                    newSize != _size || isMaximized != prevMaximized
+                        || isActivated != prevActivated || isInitial
                 {
                     try? csd.update(
                         shm: shm, contentSize: newSize, title: _title,
                         maximized: isMaximized, activated: isActivated)
                 }
+                #endif
 
+                #if WaylandCSD
                 if csd != nil {
                     let bW = isMaximized ? Int32(0) : CSDConstants.borderWidth
                     let tH = CSDConstants.titleBarHeight
@@ -183,6 +199,7 @@
                         width: Int32(newSize.width) + 2 * bW,
                         height: Int32(newSize.height) + tH + bot)
                 }
+                #endif
 
                 try? xdgSurface.ackConfigure(serial: serial)
 
@@ -200,6 +217,7 @@
             }
         }
 
+        #if WaylandCSD
         func setupDecorations() {
             switch decoMode {
             case .none:
@@ -265,9 +283,12 @@
                 x: 0, y: 0,
                 width: Int32(_size.width), height: Int32(_size.height))
         }
+        #else
+        func setupDecorations() {}
+        #endif
     }
 
-    private func csdParseStates(_ data: UnsafeRawBufferPointer) -> Set<UInt32> {
+    private func parseToplevelStates(_ data: UnsafeRawBufferPointer) -> Set<UInt32> {
         var result = Set<UInt32>()
         let count = data.count / MemoryLayout<UInt32>.size
         for i in 0..<count {

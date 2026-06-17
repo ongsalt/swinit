@@ -66,7 +66,9 @@ public final class EventLoop {
     var waylandDecoManager:   ZxdgDecorationManagerV1?
     var waylandSubcompositor: WlSubcompositor?
     var waylandShm:           WlShm?
+    #if WaylandCSD
     var csdRouter = CSDInputRouter()
+    #endif
     var pointerWindow:   Window?
     var keyboardWindow:  Window?
     var currentModifiers = Modifiers()

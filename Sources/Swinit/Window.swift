@@ -28,13 +28,16 @@ public final class Window {
     let decoMode: DecorationMode
     var toplevelDeco: ZxdgToplevelDecorationV1?
     var pendingDecoMode: ZxdgToplevelDecorationV1.Mode?
-    var csd: CSDLayer?
     var pendingToplevelSize: Size = .zero
     var pendingIsMaximized = false
+    var pendingIsActivated = true
     var configured = false
     var isMaximized = false
     var isActivated = true
     var pendingFrameCallback = false
+    #if WaylandCSD
+    var csd: CSDLayer?
+    #endif
 
     init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes,
          surface: WlSurface, xdgSurface: XdgSurface, toplevel: XdgToplevel) {
