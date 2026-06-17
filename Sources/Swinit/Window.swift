@@ -34,6 +34,7 @@ public final class Window {
     var configured = false
     var isMaximized = false
     var isActivated = true
+    var pendingFrameCallback = false
 
     init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes,
          surface: WlSurface, xdgSurface: XdgSurface, toplevel: XdgToplevel) {

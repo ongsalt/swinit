@@ -9,7 +9,7 @@
 
         func platformSetTitle(_ title: String) {
             try? toplevel.setTitle(title)
-            if let csd, let shm = app?.waylandShm {
+            if let csd, let shm = eventLoop?.waylandShm {
                 try? csd.update(
                     shm: shm, contentSize: _size, title: title,
                     maximized: isMaximized, activated: isActivated)
@@ -18,7 +18,13 @@
         }
 
         func platformRequestRedraw() {
-            try? surface.damage(x: 0, y: 0, width: Int32(_size.width), height: Int32(_size.height))
+            guard !pendingFrameCallback else { return }
+            pendingFrameCallback = true
+            try? surface.frame { [weak self] _ in
+                guard let self else { return }
+                self.pendingFrameCallback = false
+                self.dispatch(.redrawRequested)
+            }
             try? surface.commit()
         }
 
@@ -32,7 +38,7 @@
             toplevel.onEvent = nil
             xdgSurface.onEvent = nil
             if csd != nil {
-                app?.csdRouter.unregister(window: self)
+                eventLoop?.csdRouter.unregister(window: self)
                 csd = nil
             }
             try? toplevelDeco?.destroy()
@@ -41,14 +47,22 @@
             try? surface.destroy()
         }
 
-        /// Register a frame callback before presenting on Wayland, so the compositor
-        /// can throttle to the display refresh rate.
+        /// Call this before committing your rendered buffer. The compositor will fire
+        /// a frame callback after it composites the frame, throttling redraws to the
+        /// display refresh rate and dispatching the next `.redrawRequested` at vsync.
         public func prePresentNotify() {
-            try? surface.frame { _ in }
+            guard !pendingFrameCallback else { return }
+            pendingFrameCallback = true
+            try? surface.frame { [weak self] _ in
+                guard let self else { return }
+                self.pendingFrameCallback = false
+                self.dispatch(.redrawRequested)
+            }
+            // No commit here — the caller's buffer commit activates this callback.
         }
 
         func setActivated(_ active: Bool) {
-            guard active != isActivated, let csd, let shm = app?.waylandShm else { return }
+            guard active != isActivated, let csd, let shm = eventLoop?.waylandShm else { return }
             isActivated = active
             try? csd.update(
                 shm: shm, contentSize: _size, title: _title,
@@ -152,7 +166,7 @@
                     if mode == .clientSide { ensureCSD() } else { destroyCSD() }
                 }
 
-                if let csd, let shm = app?.waylandShm,
+                if let csd, let shm = eventLoop?.waylandShm,
                     newSize != _size || isMaximized != prevMaximized || isInitial
                 {
                     try? csd.update(
@@ -193,7 +207,7 @@
             case .clientSide:
                 ensureCSD()
             case .auto:
-                if let decoManager = app?.waylandDecoManager {
+                if let decoManager = eventLoop?.waylandDecoManager {
                     guard let deco = try? decoManager.getToplevelDecoration(toplevel: toplevel)
                     else {
                         ensureCSD()
@@ -220,9 +234,9 @@
 
         func ensureCSD() {
             guard csd == nil,
-                let subcompositor = app?.waylandSubcompositor,
-                let shm = app?.waylandShm,
-                let compositor = app?.waylandCompositor
+                let subcompositor = eventLoop?.waylandSubcompositor,
+                let shm = eventLoop?.waylandShm,
+                let compositor = eventLoop?.waylandCompositor
             else { return }
 
             guard
@@ -233,7 +247,7 @@
             else { return }
 
             csd = layer
-            app?.csdRouter.register(window: self, csd: layer)
+            eventLoop?.csdRouter.register(window: self, csd: layer)
 
             let bW = CSDConstants.borderWidth
             let tH = CSDConstants.titleBarHeight
@@ -245,7 +259,7 @@
 
         func destroyCSD() {
             guard csd != nil else { return }
-            app?.csdRouter.unregister(window: self)
+            eventLoop?.csdRouter.unregister(window: self)
             csd = nil
             try? xdgSurface.setWindowGeometry(
                 x: 0, y: 0,

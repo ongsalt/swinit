@@ -214,6 +214,11 @@
                 dispatch(.keyboardInput(deviceId: .placeholder, event: ev, isSynthetic: false))
                 return 0
 
+            case UINT(WM_PAINT):
+                dispatch(.redrawRequested)
+                ValidateRect(handle, nil)
+                return 0
+
             case UINT(WM_ERASEBKGND):
                 return 1
 
