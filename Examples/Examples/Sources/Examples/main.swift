@@ -3,7 +3,7 @@ import Swinit
 // MARK: - Demo app
 
 @MainActor
-final class Demo: AppDelegate {
+final class Demo: EventLoopDelegate {
 
     // Hold windows by ID so close() from inside onEvent is safe —
     // removeValue happens after the event returns.
@@ -15,14 +15,14 @@ final class Demo: AppDelegate {
 
     // MARK: Lifecycle
 
-    func canCreateSurfaces(_ app: App) {
+    func canCreateSurfaces(_ eventLoop: EventLoop) {
         // This is the ONLY safe place to create windows. On Android this fires
         // multiple times (each time the native surface becomes available again);
         // on desktop it fires once at startup.
-        openMainWindow(app)
+        openMainWindow(eventLoop)
     }
 
-    func destroySurfaces(_ app: App) {
+    func destroySurfaces(_ eventLoop: EventLoop) {
         // Drop GPU resources here. On Android the native window is destroyed
         // immediately after this returns; on desktop it fires at quit.
         #if os(Linux)
@@ -30,21 +30,21 @@ final class Demo: AppDelegate {
         #endif
     }
 
-    func appResumed(_ app: App)   { print("app resumed")   }
-    func appSuspended(_ app: App) { print("app suspended") }
+    func appResumed(_ eventLoop: EventLoop)   { print("app resumed")   }
+    func appSuspended(_ eventLoop: EventLoop) { print("app suspended") }
 
-    func windowEvent(_ app: App, window: Window, event: WindowEvent) {
+    func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent) {
         // Global handler — fires after the per-window onEvent closure.
         // Useful for app-level logic that spans all windows.
         if case .destroyed = event, windows.isEmpty {
-            app.quit()
+            eventLoop.quit()
         }
     }
 
     // MARK: Window setup
 
-    private func openMainWindow(_ app: App) {
-        let win = app.openWindow(.init(
+    private func openMainWindow(_ eventLoop: EventLoop) {
+        let win = eventLoop.openWindow(.init(
             title: "example",
             size: .init(width: 1280, height: 720)
         ))
@@ -52,7 +52,7 @@ final class Demo: AppDelegate {
         #if os(Linux)
         // Wayland: create a SHM software renderer using the window's surface.
         // Real apps would pass win.surface / win.display to wgpu, EGL, or Vulkan.
-        if let shm = app.shm {
+        if let shm = eventLoop.shm {
             renderers[win.id] = ShmRenderer(shm: shm)
         }
         #endif
@@ -67,11 +67,11 @@ final class Demo: AppDelegate {
 
         win.onEvent = { [weak self, weak win] event in
             guard let self, let win else { return }
-            self.handle(event: event, window: win, app: app)
+            self.handle(event: event, window: win, eventLoop: eventLoop)
         }
     }
 
-    private func handle(event: WindowEvent, window win: Window, app: App) {
+    private func handle(event: WindowEvent, window win: Window, eventLoop: EventLoop) {
         switch event {
 
         case .resized(let size, let isFinal):
@@ -109,7 +109,7 @@ final class Demo: AppDelegate {
         case .keyboardInput(_, let key, _) where key.state == .pressed:
             // Press N to open a second window, demonstrating multi-window support.
             if key.logicalKey == 0x6E /* 'n' */ {
-                openMainWindow(app)
+                openMainWindow(eventLoop)
             }
 
         default:
@@ -120,4 +120,4 @@ final class Demo: AppDelegate {
 
 // MARK: - Entry point
 
-App().run(Demo())
+EventLoop().run(Demo())

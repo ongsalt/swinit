@@ -9,35 +9,35 @@ import SwinitCore
 /// (each time the native surface is created/destroyed by the OS). Design your GPU resource
 /// management around these two calls, not around `appResumed`/`appSuspended`.
 @MainActor
-public protocol AppDelegate: AnyObject {
+public protocol EventLoopDelegate: AnyObject {
     /// The native surface is available. Create all windows here.
     /// On desktop this fires once at startup; on Android it may fire multiple times.
-    func canCreateSurfaces(_ app: App)
+    func canCreateSurfaces(_ eventLoop: EventLoop)
 
     /// A window event arrived. Per-window `onEvent` fires first, then this.
-    func windowEvent(_ app: App, window: Window, event: WindowEvent)
+    func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent)
 
     /// Drop all GPU surfaces (wgpu::Surface, EGLSurface, VkSurfaceKHR…) before returning.
     /// The OS will destroy the underlying native window immediately after this returns.
-    func destroySurfaces(_ app: App)
+    func destroySurfaces(_ eventLoop: EventLoop)
 
     /// App became logically active (foregrounded). GPU surfaces are still valid here.
-    func appResumed(_ app: App)
+    func appResumed(_ eventLoop: EventLoop)
 
     /// App became logically inactive (backgrounded). GPU surfaces are still valid here.
-    func appSuspended(_ app: App)
+    func appSuspended(_ eventLoop: EventLoop)
 
     /// Event batch complete; loop is about to sleep. Good place to submit frames in game loops.
-    func aboutToWait(_ app: App)
+    func aboutToWait(_ eventLoop: EventLoop)
 
     /// Low-memory warning from the OS (Android / iOS).
-    func memoryWarning(_ app: App)
+    func memoryWarning(_ eventLoop: EventLoop)
 }
 
-extension AppDelegate {
-    public func destroySurfaces(_ app: App) {}
-    public func appResumed(_ app: App) {}
-    public func appSuspended(_ app: App) {}
-    public func aboutToWait(_ app: App) {}
-    public func memoryWarning(_ app: App) {}
+extension EventLoopDelegate {
+    public func destroySurfaces(_ eventLoop: EventLoop) {}
+    public func appResumed(_ eventLoop: EventLoop) {}
+    public func appSuspended(_ eventLoop: EventLoop) {}
+    public func aboutToWait(_ eventLoop: EventLoop) {}
+    public func memoryWarning(_ eventLoop: EventLoop) {}
 }

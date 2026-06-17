@@ -104,7 +104,7 @@
                 isResizing = true
                 currentHeartbeatTimer = SetTimer(
                     handle, UInt64.random(in: .min ... .max),
-                    App.tickIntervalMs, nil)
+                    EventLoop.tickIntervalMs, nil)
                 return 0
 
             case UINT(WM_TIMER) where currentHeartbeatTimer != nil:

@@ -6,7 +6,7 @@
     import WaylandClientProtocols
     import SwinitWayland
 
-    extension App {
+    extension EventLoop {
 
         func platformRun() {
             let conn = Connection()
@@ -54,7 +54,7 @@
             let toplevel = try! xdgSurf.getToplevel()
 
             let window = Window(
-                id: id, app: self, attributes: attributes,
+                id: id, eventLoop: self, attributes: attributes,
                 surface: surface, xdgSurface: xdgSurf, toplevel: toplevel)
             windows[id] = window
             surfaceToWindow[surface.id] = id

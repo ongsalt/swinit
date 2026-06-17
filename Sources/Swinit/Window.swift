@@ -13,7 +13,7 @@ import SwinitWin32
 public final class Window {
     public let id: WindowId
     public private(set) var isClosed = false
-    weak var app: App?
+    weak var eventLoop: EventLoop?
     public var onEvent: (@MainActor (WindowEvent) -> Void)?
     var _title: String
     var _size: Size
@@ -35,12 +35,12 @@ public final class Window {
     var isMaximized = false
     var isActivated = true
 
-    init(id: WindowId, app: App, attributes: WindowAttributes,
+    init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes,
          surface: WlSurface, xdgSurface: XdgSurface, toplevel: XdgToplevel) {
         self.id         = id
-        self.app        = app
+        self.eventLoop  = eventLoop
         self.surface    = surface
-        self.display    = app.waylandDisplay
+        self.display    = eventLoop.waylandDisplay
         self.xdgSurface = xdgSurface
         self.toplevel   = toplevel
         self._title     = attributes.title
@@ -61,9 +61,9 @@ public final class Window {
     var isResizing = false
     var currentHeartbeatTimer: UInt64?
 
-    init(id: WindowId, app: App, attributes: WindowAttributes) {
-        self.id    = id
-        self.app   = app
+    init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes) {
+        self.id        = id
+        self.eventLoop = eventLoop
         self._title = attributes.title
         self._size  = attributes.size
         setupWin32Platform(attributes: attributes)
@@ -104,12 +104,12 @@ public final class Window {
         isClosed = true
         dispatch(.destroyed)
         platformDestroy()
-        app?.removeWindow(id: id)
+        eventLoop?.removeWindow(id: id)
     }
 
     func dispatch(_ event: WindowEvent) {
         onEvent?(event)
-        if let app { app.delegate?.windowEvent(app, window: self, event: event) }
+        if let eventLoop { eventLoop.delegate?.windowEvent(eventLoop, window: self, event: event) }
     }
 
     deinit {

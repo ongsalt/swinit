@@ -12,8 +12,8 @@ import SwinitWin32
 #endif
 
 @MainActor
-public final class App {
-    public weak var delegate: (any AppDelegate)?
+public final class EventLoop {
+    public weak var delegate: (any EventLoopDelegate)?
 
     var windows: [WindowId: Window] = [:]
 
@@ -29,7 +29,7 @@ public final class App {
     }
 
     /// Convenience: assigns `delegate` then calls `run()`.
-    public func run(_ delegate: some AppDelegate) {
+    public func run(_ delegate: some EventLoopDelegate) {
         self.delegate = delegate
         run()
     }
@@ -54,7 +54,7 @@ public final class App {
         platformWindowRemoved(id: id)
     }
 
-    // MARK: Platform stored properties — implementations in App+<Platform>.swift
+    // MARK: Platform stored properties — implementations in EventLoop+<Platform>.swift
 
 #if os(Linux)
     var connection: Connection?

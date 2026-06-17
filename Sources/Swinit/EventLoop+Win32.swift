@@ -4,7 +4,7 @@
     import WinSDK
     import SwinitWin32
 
-    extension App {
+    extension EventLoop {
 
         func platformRun() {
             Window.registerWindowClass()
@@ -20,7 +20,7 @@
 
         func platformOpenWindow(_ attributes: WindowAttributes) -> Window {
             let id = WindowId.generate()
-            let window = Window(id: id, app: self, attributes: attributes)
+            let window = Window(id: id, eventLoop: self, attributes: attributes)
             windows[id] = window
             return window
         }

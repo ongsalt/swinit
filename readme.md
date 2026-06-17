@@ -1,4 +1,6 @@
-# External Dependencies
+this is like 99% vibecode, except for platform eventloop
 
-## Linux
+## External Dependencies
+
+### Linux
 - cairo for csd
