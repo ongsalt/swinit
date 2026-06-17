@@ -50,8 +50,6 @@ final class SHMLayer {
 
     deinit {
         if let d = mappedData, mappedSize > 0 { munmap(d, mappedSize) }
-        try? buffer?.destroy()
-        try? pool?.destroy()
     }
 
     func prepare(shm: WlShm, width w: Int, height h: Int) -> (UnsafeMutableRawPointer, WlBuffer)? {
