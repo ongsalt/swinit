@@ -1,1 +1,4 @@
-this is 90% vibecoded except runloop integration part
+# External Dependencies
+
+## Linux
+- cairo for csd

@@ -10,6 +10,10 @@ let package = Package(
             targets: ["Swinit"],
         ),
     ],
+    traits: [
+        .trait(name: "WaylandCSD"),
+        .default(enabledTraits: ["WaylandCSD"])
+    ],
     dependencies: [
         .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master")
     ],
@@ -17,7 +21,7 @@ let package = Package(
         .systemLibrary(
             name: "CCairo",
             pkgConfig: "cairo",
-            providers: [.apt(["libcairo2-dev"]), .brew(["cairo"])]
+            providers: [.apt(["libcairo2-dev"]), .brew(["cairo"])],
         ),
 
         .target(
@@ -30,9 +34,9 @@ let package = Package(
         .target(
             name: "SwinitWayland",
             dependencies: [
-                .product(name: "SwiftWayland", package: "SwiftWayland"),
+                .product(name: "WaylandClient", package: "SwiftWayland"),
                 "SwinitCore",
-                .target(name: "CCairo", condition: .when(platforms: [.linux])),
+                .target(name: "CCairo", condition: .when(platforms: [.linux], traits: ["WaylandCSD"])),
             ]
         ),
 
@@ -45,7 +49,9 @@ let package = Package(
             dependencies: [
                 "SwinitCore",
                 .byName(name: "SwinitWin32", condition: .when(platforms: [.windows])),
-                .byName(name: "SwinitWayland", condition: .when(platforms: [.linux]))
+                .byName(name: "SwinitWayland", condition: .when(platforms: [.linux])),
+                .product(name: "WaylandClient", package: "SwiftWayland",
+                         condition: .when(platforms: [.linux])),
             ]
         ),
         .testTarget(

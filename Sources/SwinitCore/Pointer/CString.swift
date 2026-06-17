@@ -24,12 +24,10 @@ package final class CString {
     }
 
     private func update() {
-        var cStr = swiftString.cString(using: .utf8)!
-
+        var cStr = swiftString.utf8CString
         buffer = realloc(buffer, cStr.count * MemoryLayout<CChar>.size)
             .assumingMemoryBound(to: CChar.self)
         strcpy(buffer, &cStr)
-
     }
 
     func unleak() {

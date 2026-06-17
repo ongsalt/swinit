@@ -1,15 +1,17 @@
-#if canImport(SwiftWayland)
-import SwiftWayland
-import WaylandProtocols
+#if canImport(WaylandClient)
+import WaylandClient
+import WaylandClientProtocols
 import Glibc
+import Foundation
 
 // Minimal SHM renderer — draws a colour gradient to prove the pipeline works.
 // Real apps would use Vulkan/EGL/wgpu and never touch WlShm themselves.
-final class ShmRenderer: @unchecked Sendable {
+@MainActor
+final class ShmRenderer {
     private let shm: WlShm
-    private var pool: WlShmPool?
-    private var buffer: WlBuffer?
-    private var bufferData: UnsafeMutableRawPointer?
+    nonisolated(unsafe) private var pool: WlShmPool?
+    nonisolated(unsafe) private var buffer: WlBuffer?
+    nonisolated(unsafe) private var bufferData: UnsafeMutableRawPointer?
     private var mappedSize: Int = 0
 
     init(shm: WlShm) { self.shm = shm }
@@ -47,7 +49,6 @@ final class ShmRenderer: @unchecked Sendable {
         let b = try? p?.createBuffer(offset: 0, width: Int32(width), height: Int32(height),
                                       stride: Int32(stride), format: .xrgb8888)
         let mapped = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0)
-        _ = fh
         pool = p; buffer = b; mappedSize = size
         bufferData = (mapped != MAP_FAILED) ? mapped : nil
     }

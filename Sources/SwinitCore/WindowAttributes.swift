@@ -1,38 +1,34 @@
-/// Whether and how to decorate a window. Wayland only — Win32 always uses
-/// system chrome (DWM). The default is `.auto`.
+/// Whether and how to decorate a window. Wayland only — Win32 always uses system chrome.
 public enum DecorationMode: Sendable {
-    /// Try server-side decorations; fall back to client-side if the compositor
-    /// does not support the xdg-decoration protocol.
+    /// Try server-side decorations; fall back to client-side if the compositor doesn't support
+    /// xdg-decoration. This is the default.
     case auto
-    /// Always draw client-side decorations regardless of compositor support.
+    /// Always draw client-side decorations.
     case clientSide
-    /// Create a borderless window with no decorations or shadow.
+    /// Borderless window, no decorations.
     case none
 }
 
-public struct WindowAttributes {
+public struct WindowAttributes: Sendable {
     public var title: String
+    public var size: Size
     public var transparency: Bool
-    public var size: SIMD2<UInt>
-    /// Decoration mode (Wayland only; ignored on other platforms).
+    /// Decoration mode. Wayland only; ignored on Win32 (system chrome always used).
     public var decorations: DecorationMode
-
-    #if os(Windows)
+    /// Win32 only: WS_EX_NOREDIRECTIONBITMAP. Ignored on other platforms.
     public var noRedirectionBitmap: Bool
 
-    public init(title: String = "swinit_window", noRedirectionBitmap: Bool = false, transparency: Bool = false, size: SIMD2<UInt> = [800, 600], decorations: DecorationMode = .auto) {
+    public init(
+        title: String = "swinit",
+        size: Size = .init(width: 800, height: 600),
+        transparency: Bool = false,
+        decorations: DecorationMode = .auto,
+        noRedirectionBitmap: Bool = false
+    ) {
         self.title = title
+        self.size = size
+        self.transparency = transparency
+        self.decorations = decorations
         self.noRedirectionBitmap = noRedirectionBitmap
-        self.transparency = transparency
-        self.size = size
-        self.decorations = decorations
     }
-    #else
-    public init(title: String = "swinit_window", transparency: Bool = false, size: SIMD2<UInt> = [800, 600], decorations: DecorationMode = .auto) {
-        self.title = title
-        self.transparency = transparency
-        self.size = size
-        self.decorations = decorations
-    }
-    #endif
 }

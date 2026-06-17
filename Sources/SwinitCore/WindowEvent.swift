@@ -1,17 +1,7 @@
-public struct PhysicalSize<U: Sendable>: Sendable {
-    public var width: U
-    public var height: U
-    public init(width: U, height: U) {
-        self.width = width
-        self.height = height
-    }
-}
-
 public typealias PhysicalPosition = SIMD2
 
 public struct DeviceId: Equatable, Sendable {
     public init() {}
-    /// Placeholder used until proper per-device OS tracking is implemented.
     public static let placeholder = DeviceId()
 }
 
@@ -62,7 +52,8 @@ public struct KeyEvent: Sendable {
     public var state: ElementState
     public var isRepeat: Bool
 
-    public init(physicalKey: UInt32, logicalKey: UInt32, text: String? = nil, state: ElementState, isRepeat: Bool) {
+    public init(physicalKey: UInt32, logicalKey: UInt32, text: String? = nil,
+                state: ElementState, isRepeat: Bool) {
         self.physicalKey = physicalKey
         self.logicalKey = logicalKey
         self.text = text
@@ -79,7 +70,7 @@ public enum WindowState: Sendable {
 }
 
 public enum WindowEvent: Sendable {
-    case resized(size: PhysicalSize<UInt32>, isFinal: Bool)
+    case resized(size: Size, isFinal: Bool)
     case moved(PhysicalPosition<Int32>)
     case closeRequested
     case destroyed

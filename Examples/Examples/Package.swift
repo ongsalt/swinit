@@ -12,7 +12,7 @@ let package = Package(
             name: "Examples",
             dependencies: [
                 .product(name: "Swinit", package: "swinit"),
-                .product(name: "SwiftWayland", package: "SwiftWayland", condition: .when(platforms: [.linux])),
+                .product(name: "WaylandClient", package: "SwiftWayland", condition: .when(platforms: [.linux])),
             ]
         ),
     ],

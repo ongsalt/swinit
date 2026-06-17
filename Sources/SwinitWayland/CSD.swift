@@ -1,12 +1,13 @@
-import SwiftWayland
-import WaylandProtocols
-import CCairo
+import WaylandClient
+import WaylandClientProtocols
 import Glibc
 import Foundation
+import SwinitCore
+import CCairo
 
 // MARK: - Hit-test area
 
-enum CSDArea {
+package enum CSDArea {
     case titleBar
     case borderLeft
     case borderRight
@@ -15,28 +16,26 @@ enum CSDArea {
 
 // MARK: - Layout constants
 
-enum CSDConstants {
-    static let titleBarHeight: Int32 = 30
-    static let borderWidth: Int32 = 6
-    static let shadowMargin: Int32 = 24
-    static let cornerRadius: Double = 8.0
+package enum CSDConstants {
+    package static let titleBarHeight: Int32 = 30
+    package static let borderWidth: Int32 = 6
+    package static let shadowMargin: Int32 = 24
+    package static let cornerRadius: Double = 8.0
 
-    static let buttonRadius: Double = 7.0
-    static let buttonSpacing: Double = 5.0
-    static let buttonMarginLeft: Double = 12.0
+    package static let buttonRadius: Double = 7.0
+    package static let buttonSpacing: Double = 5.0
+    package static let buttonMarginLeft: Double = 12.0
 
-    // Title bar colors (RGBA tuples)
-    static let titleBarRGBA = (r: 0.169, g: 0.169, b: 0.169, a: 1.0)           // #2B2B2B
-    static let titleBarInactiveRGBA = (r: 0.239, g: 0.239, b: 0.239, a: 1.0)   // #3D3D3D
-    static let borderRGBA = (r: 0.118, g: 0.118, b: 0.118, a: 1.0)             // #1E1E1E
+    static let titleBarRGBA = (r: 0.169, g: 0.169, b: 0.169, a: 1.0)
+    static let titleBarInactiveRGBA = (r: 0.239, g: 0.239, b: 0.239, a: 1.0)
+    static let borderRGBA = (r: 0.118, g: 0.118, b: 0.118, a: 1.0)
     static let titleTextRGBA = (r: 1.0, g: 1.0, b: 1.0, a: 0.85)
     static let titleTextInactiveRGBA = (r: 1.0, g: 1.0, b: 1.0, a: 0.4)
 
-    // Button colors (RGBA)
-    static let closeRGBA     = (r: 1.0,   g: 0.373, b: 0.341, a: 1.0)   // #FF5F57
-    static let minimizeRGBA  = (r: 1.0,   g: 0.741, b: 0.180, a: 1.0)   // #FFBD2E
-    static let maximizeRGBA  = (r: 0.157, g: 0.792, b: 0.255, a: 1.0)   // #28CA41
-    static let buttonInactiveRGBA = (r: 0.427, g: 0.427, b: 0.427, a: 1.0)  // #6D6D6D
+    static let closeRGBA     = (r: 1.0,   g: 0.373, b: 0.341, a: 1.0)
+    static let minimizeRGBA  = (r: 1.0,   g: 0.741, b: 0.180, a: 1.0)
+    static let maximizeRGBA  = (r: 0.157, g: 0.792, b: 0.255, a: 1.0)
+    static let buttonInactiveRGBA = (r: 0.427, g: 0.427, b: 0.427, a: 1.0)
 }
 
 // MARK: - Reusable SHM buffer
@@ -55,8 +54,6 @@ final class SHMLayer {
         try? pool?.destroy()
     }
 
-    /// Returns a raw pointer to the ARGB8888 pixel data plus the matching WlBuffer.
-    /// Reallocates the SHM pool only when the dimensions change.
     func prepare(shm: WlShm, width w: Int, height h: Int) -> (UnsafeMutableRawPointer, WlBuffer)? {
         guard w > 0, h > 0 else { return nil }
         let stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, Int32(w))
@@ -85,19 +82,25 @@ final class SHMLayer {
     }
 }
 
-// MARK: - Subsurface pair
+// MARK: - Subsurface
 
-/// A WlSurface + WlSubsurface + SHMLayer triple. Handles its own positioning, drawing, and cleanup.
 @MainActor
 final class CSDSubsurface {
-    let surface: WlSurface
-    private let sub: WlSubsurface
+    // nonisolated(unsafe): deinit is nonisolated in Swift 6, but we only ever destroy these
+    // from the main actor — safe in practice.
+    nonisolated(unsafe) let surface: WlSurface
+    nonisolated(unsafe) private let sub: WlSubsurface
     private let shmLayer = SHMLayer()
 
     init(compositor: WlCompositor, subcompositor: WlSubcompositor, parent: WlSurface) throws {
         surface = try compositor.createSurface()
         sub     = try subcompositor.getSubsurface(surface: surface, parent: parent)
         try sub.setSync()
+    }
+
+    deinit {
+        try? sub.destroy()
+        try? surface.destroy()
     }
 
     func render(shm: WlShm, x: Int32, y: Int32, width: Int, height: Int,
@@ -116,40 +119,33 @@ final class CSDSubsurface {
     }
 
     func placeBelow(sibling: WlSurface) throws { try sub.placeBelow(sibling: sibling) }
-
-    deinit {
-        try? sub.destroy()
-        try? surface.destroy()
-    }
 }
 
 // MARK: - CSD Layer
 
-/// Manages all client-side decoration subsurfaces (title bar, borders, shadow).
 @MainActor
-final class CSDLayer {
+package final class CSDLayer {
     private let titleBar: CSDSubsurface
     private let left:     CSDSubsurface
     private let right:    CSDSubsurface
     private let bottom:   CSDSubsurface
     private let shadow:   CSDSubsurface
 
-    // Button hit-test centers are constant — they depend only on CSDConstants.
-    let buttonRadius:    Double = CSDConstants.buttonRadius
-    let closeCenter:     SIMD2<Double>
-    let minimizeCenter:  SIMD2<Double>
-    let maximizeCenter:  SIMD2<Double>
+    package let buttonRadius:   Double = CSDConstants.buttonRadius
+    package let closeCenter:    SIMD2<Double>
+    package let minimizeCenter: SIMD2<Double>
+    package let maximizeCenter: SIMD2<Double>
 
-    var titleBarSurfaceId: UInt32 { titleBar.surface.id }
-    var leftSurfaceId:     UInt32 { left.surface.id }
-    var rightSurfaceId:    UInt32 { right.surface.id }
-    var bottomSurfaceId:   UInt32 { bottom.surface.id }
+    package var titleBarSurfaceId: UInt32 { titleBar.surface.id }
+    package var leftSurfaceId:     UInt32 { left.surface.id }
+    package var rightSurfaceId:    UInt32 { right.surface.id }
+    package var bottomSurfaceId:   UInt32 { bottom.surface.id }
 
-    // nil on first call → forces a full draw; thereafter only changed surfaces are redrawn.
-    private var cache: (size: SIMD2<UInt>, title: String, maximized: Bool, activated: Bool)? = nil
+    private var cache: (size: Size, title: String, maximized: Bool, activated: Bool)?
 
-    init(compositor: WlCompositor, subcompositor: WlSubcompositor, shm: WlShm,
-         parentSurface: WlSurface, contentSize: SIMD2<UInt>) throws {
+    package init(compositor: WlCompositor, subcompositor: WlSubcompositor, shm: WlShm,
+                 parentSurface: WlSurface, contentSize: Size,
+                 title: String, activated: Bool) throws {
         titleBar = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
         left     = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
         right    = try CSDSubsurface(compositor: compositor, subcompositor: subcompositor, parent: parentSurface)
@@ -170,11 +166,12 @@ final class CSDLayer {
         minimizeCenter = SIMD2(cx0 + 2 * bR + bSp, cy)
         maximizeCenter = SIMD2(cx0 + 4 * bR + 2 * bSp, cy)
 
-        try update(shm: shm, contentSize: contentSize, title: "", maximized: false, activated: true)
+        try update(shm: shm, contentSize: contentSize, title: title,
+                   maximized: false, activated: activated)
     }
 
-    func update(shm: WlShm, contentSize: SIMD2<UInt>, title: String,
-                maximized: Bool, activated: Bool) throws {
+    package func update(shm: WlShm, contentSize: Size, title: String,
+                        maximized: Bool, activated: Bool) throws {
         let prev = cache
         cache = (contentSize, title, maximized, activated)
 
@@ -186,8 +183,8 @@ final class CSDLayer {
         let bordersDirty  = sizeChanged || prev?.maximized != maximized
         guard titleBarDirty || bordersDirty else { return }
 
-        let cW = max(Int(contentSize.x), 1)
-        let cH = max(Int(contentSize.y), 1)
+        let cW = max(Int(contentSize.width),  1)
+        let cH = max(Int(contentSize.height), 1)
         let bW = Int(CSDConstants.borderWidth)
         let tH = Int(CSDConstants.titleBarHeight)
         let sM = Int(CSDConstants.shadowMargin)
@@ -233,57 +230,8 @@ final class CSDLayer {
     }
 }
 
-// MARK: - CSD input router
+// MARK: - Cairo helpers
 
-/// Tracks which pointer events land on CSD subsurfaces and provides the current hover state.
-@MainActor
-struct CSDInputRouter: ~Copyable {
-    private struct Entry {
-        weak var window: Window?
-        let area: CSDArea
-    }
-    private var surfaces: [UInt32: Entry] = [:]
-    private(set) weak var activeWindow: Window? = nil
-    private(set) var activeArea: CSDArea? = nil
-    private(set) var x: Double = 0
-    private(set) var y: Double = 0
-
-    mutating func register(window: Window, csd: CSDLayer) {
-        surfaces[csd.titleBarSurfaceId] = Entry(window: window, area: .titleBar)
-        surfaces[csd.leftSurfaceId]     = Entry(window: window, area: .borderLeft)
-        surfaces[csd.rightSurfaceId]    = Entry(window: window, area: .borderRight)
-        surfaces[csd.bottomSurfaceId]   = Entry(window: window, area: .borderBottom)
-    }
-
-    mutating func unregister(window: Window) {
-        surfaces = surfaces.filter { $0.value.window !== window }
-        if activeWindow === window { reset() }
-    }
-
-    /// Returns `(window, area)` if `surfaceId` belongs to a CSD subsurface, else `nil`.
-    mutating func enter(surfaceId: UInt32, x: Double, y: Double) -> (Window, CSDArea)? {
-        guard let entry = surfaces[surfaceId], let window = entry.window else { return nil }
-        activeWindow = window
-        activeArea = entry.area
-        self.x = x
-        self.y = y
-        return (window, entry.area)
-    }
-
-    mutating func move(x: Double, y: Double) {
-        self.x = x
-        self.y = y
-    }
-
-    mutating func reset() {
-        activeWindow = nil
-        activeArea = nil
-    }
-}
-
-// MARK: - Cairo drawing helpers
-
-/// Run `draw` on a Cairo context backed by the given SHM pixel buffer.
 private func withCairo(_ ptr: UnsafeMutableRawPointer, width: Int, height: Int,
                        _ draw: (OpaquePointer) -> Void) {
     let stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, Int32(width))
@@ -298,7 +246,6 @@ private func withCairo(_ ptr: UnsafeMutableRawPointer, width: Int, height: Int,
     cairo_surface_flush(cs)
 }
 
-/// Rounded rectangle path (all four corners).
 private func cairoRoundedRect(_ cr: OpaquePointer,
                                x: Double, y: Double, w: Double, h: Double, r: Double) {
     let r = min(r, w / 2, h / 2)
@@ -310,7 +257,6 @@ private func cairoRoundedRect(_ cr: OpaquePointer,
     cairo_close_path(cr)
 }
 
-/// Rounded rectangle with only the top corners rounded.
 private func cairoTopRounded(_ cr: OpaquePointer,
                               x: Double, y: Double, w: Double, h: Double, r: Double) {
     let r = min(r, w / 2, h)
@@ -329,15 +275,12 @@ private func cairoSet(_ cr: OpaquePointer, r: Double, g: Double, b: Double, a: D
 
 private func cairoDrawTitleBar(_ ptr: UnsafeMutableRawPointer,
                                 width: Int, height: Int,
-                                title: String,
-                                activated: Bool, roundTopCorners: Bool) {
+                                title: String, activated: Bool, roundTopCorners: Bool) {
     withCairo(ptr, width: width, height: height) { cr in
-        // Clear to transparent
         cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR)
         cairo_paint(cr)
         cairo_set_operator(cr, CAIRO_OPERATOR_OVER)
 
-        // Background
         let bg = activated ? CSDConstants.titleBarRGBA : CSDConstants.titleBarInactiveRGBA
         cairoSet(cr, r: bg.r, g: bg.g, b: bg.b, a: bg.a)
         if roundTopCorners {
@@ -348,7 +291,6 @@ private func cairoDrawTitleBar(_ ptr: UnsafeMutableRawPointer,
         }
         cairo_fill(cr)
 
-        // Buttons (macOS layout: close · minimize · maximize on the left)
         let bR  = CSDConstants.buttonRadius
         let bSp = CSDConstants.buttonSpacing
         let bML = CSDConstants.buttonMarginLeft
@@ -368,7 +310,6 @@ private func cairoDrawTitleBar(_ ptr: UnsafeMutableRawPointer,
         drawButton(cx: minX,   rgba: CSDConstants.minimizeRGBA)
         drawButton(cx: maxX,   rgba: CSDConstants.maximizeRGBA)
 
-        // Title text (centered in the bar)
         if !title.isEmpty {
             let text = activated ? CSDConstants.titleTextRGBA : CSDConstants.titleTextInactiveRGBA
             cairoSet(cr, r: text.r, g: text.g, b: text.b, a: text.a)
@@ -403,17 +344,12 @@ private func cairoDrawShadow(_ ptr: UnsafeMutableRawPointer,
         cairo_paint(cr)
         cairo_set_operator(cr, CAIRO_OPERATOR_OVER)
 
-        // Paint shadow: render the window shape at increasing offsets + alpha,
-        // building up a soft glow around the inner rectangle.
         let steps = blur
-        let iX = Double(innerX)
-        let iY = Double(innerY)
-        let iW = Double(innerW)
-        let iH = Double(innerH)
+        let iX = Double(innerX); let iY = Double(innerY)
+        let iW = Double(innerW); let iH = Double(innerH)
 
         for i in 0..<steps {
             let t = Double(i) / Double(steps)
-            // Cubic easing: more alpha close to the window, fades out quickly
             let alpha = (1 - t) * (1 - t) * (1 - t) * (0.55 / Double(steps))
             let expand = Double(steps - i)
             cairo_set_source_rgba(cr, 0, 0, 0, alpha)
@@ -424,7 +360,6 @@ private func cairoDrawShadow(_ ptr: UnsafeMutableRawPointer,
             cairo_fill(cr)
         }
 
-        // Punch out the window interior so it's fully transparent
         cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR)
         cairoRoundedRect(cr, x: iX, y: iY, w: iW, h: iH, r: cornerR)
         cairo_fill(cr)
