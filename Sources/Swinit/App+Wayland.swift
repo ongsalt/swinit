@@ -94,6 +94,7 @@
                 guard let self else { return }
                 switch event {
                 case .enter(_, let surface, let x, let y):
+                    guard let surface else { return }
                     csdRouter.reset()
                     if let win = findWindow(bySurfaceId: surface.id) {
                         pointerWindow = win
@@ -107,6 +108,7 @@
                     }
 
                 case .leave(_, let surface):
+                    guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         win.dispatch(.cursorLeft(deviceId: .placeholder))
                     }
@@ -155,12 +157,14 @@
                 guard let self else { return }
                 switch event {
                 case .enter(_, let surface, _):
+                    guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         keyboardWindow = win
                         win.dispatch(.focused(true))
                         win.setActivated(true)
                     }
                 case .leave(_, let surface):
+                    guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         win.dispatch(.focused(false))
                         win.setActivated(false)
@@ -219,6 +223,7 @@
 
         mutating func register(window: Window, csd: CSDLayer) {
             surfaces[csd.titleBarSurfaceId] = Entry(window: window, area: .titleBar)
+            surfaces[csd.topSurfaceId] = Entry(window: window, area: .borderTop)
             surfaces[csd.leftSurfaceId] = Entry(window: window, area: .borderLeft)
             surfaces[csd.rightSurfaceId] = Entry(window: window, area: .borderRight)
             surfaces[csd.bottomSurfaceId] = Entry(window: window, area: .borderBottom)

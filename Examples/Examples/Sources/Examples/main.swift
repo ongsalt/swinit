@@ -45,7 +45,7 @@ final class Demo: AppDelegate {
 
     private func openMainWindow(_ app: App) {
         let win = app.openWindow(.init(
-            title: "swinit",
+            title: "example",
             size: .init(width: 1280, height: 720)
         ))
 

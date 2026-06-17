@@ -22,8 +22,8 @@
             try? surface.commit()
         }
 
+        /// Do nothing - In wayland compositor decides the actual size via configure event.
         func platformRequestResize(to size: Size) {
-            // Hint only — compositor decides the actual size via configure event.
         }
 
         func platformFocus() {}
@@ -79,17 +79,28 @@
                 } else {
                     try? toplevel.move(seat: seat, serial: serial)
                 }
+            case .borderTop:
+                let grabW = Double(CSDConstants.resizeGrabWidth)
+                let cW = Double(_size.width)
+                let zone = 20.0
+                if x < grabW + zone {
+                    try? toplevel.resize(seat: seat, serial: serial, edges: .topLeft)
+                } else if x > grabW + cW - zone {
+                    try? toplevel.resize(seat: seat, serial: serial, edges: .topRight)
+                } else {
+                    try? toplevel.resize(seat: seat, serial: serial, edges: .top)
+                }
             case .borderLeft:
                 try? toplevel.resize(seat: seat, serial: serial, edges: .left)
             case .borderRight:
                 try? toplevel.resize(seat: seat, serial: serial, edges: .right)
             case .borderBottom:
-                let bW = Double(CSDConstants.borderWidth)
+                let grabW = Double(CSDConstants.resizeGrabWidth)
                 let cW = Double(_size.width)
                 let zone = 20.0
-                if x < bW + zone {
+                if x < grabW + zone {
                     try? toplevel.resize(seat: seat, serial: serial, edges: .bottomLeft)
-                } else if x > bW + cW - zone {
+                } else if x > grabW + cW - zone {
                     try? toplevel.resize(seat: seat, serial: serial, edges: .bottomRight)
                 } else {
                     try? toplevel.resize(seat: seat, serial: serial, edges: .bottom)
@@ -103,10 +114,24 @@
                 switch event {
                 case .configure(let width, let height, let states):
                     let newMax = csdParseStates(states).contains(1)
-                    pendingToplevelSize =
-                        (width > 0 && height > 0)
-                        ? Size(width: UInt32(width), height: UInt32(height)) : .zero
-                    // pendingIsMaximized = newMax
+                    if width > 0 && height > 0 {
+                        if csd != nil {
+                            // Compositor sends window-geometry size (content + CSD frame).
+                            // Subtract the frame to recover the content size.
+                            let bW = newMax ? Int32(0) : CSDConstants.borderWidth
+                            let tH = CSDConstants.titleBarHeight
+                            let bot = newMax ? Int32(0) : CSDConstants.borderWidth
+                            pendingToplevelSize = Size(
+                                width: UInt32(max(1, Int(width) - 2 * Int(bW))),
+                                height: UInt32(max(1, Int(height) - Int(tH) - Int(bot)))
+                            )
+                        } else {
+                            pendingToplevelSize = Size(width: UInt32(width), height: UInt32(height))
+                        }
+                    } else {
+                        pendingToplevelSize = .zero
+                    }
+                    pendingIsMaximized = newMax
                 case .close:
                     dispatch(.closeRequested)
                 default: break
