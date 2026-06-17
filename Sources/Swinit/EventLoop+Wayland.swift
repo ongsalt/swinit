@@ -40,8 +40,7 @@
             RunLoop.main.run()
             watch.cancel()
 
-            delegate?.appSuspended(self)
-            delegate?.destroySurfaces(self)
+            delegate?.exiting(self)
         }
 
         func platformOpenWindow(_ attributes: WindowAttributes) -> Window {

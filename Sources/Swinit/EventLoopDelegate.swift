@@ -2,12 +2,11 @@ import SwinitCore
 
 /// Application lifecycle callbacks. All methods run on the main actor.
 ///
-/// Lifecycle order on all platforms:
-///   `canCreateSurfaces` → `appResumed` → [event loop] → `appSuspended` → `destroySurfaces`
+/// Lifecycle order on desktop (Linux / Windows):
+///   `canCreateSurfaces` → `appResumed` → [event loop] → `exiting`
 ///
-/// On Android/iOS, `canCreateSurfaces` and `destroySurfaces` may fire multiple times per session
-/// (each time the native surface is created/destroyed by the OS). Design your GPU resource
-/// management around these two calls, not around `appResumed`/`appSuspended`.
+/// On Android/iOS, `canCreateSurfaces`/`appSuspended` and `appResumed`/`appSuspended`
+/// may fire multiple times per session as the native window is created and destroyed by the OS.
 @MainActor
 public protocol EventLoopDelegate: AnyObject {
     /// The native surface is available. Create all windows here.
@@ -17,27 +16,28 @@ public protocol EventLoopDelegate: AnyObject {
     /// A window event arrived. Per-window `onEvent` fires first, then this.
     func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent)
 
-    /// Drop all GPU surfaces (wgpu::Surface, EGLSurface, VkSurfaceKHR…) before returning.
-    /// The OS will destroy the underlying native window immediately after this returns.
-    func destroySurfaces(_ eventLoop: EventLoop)
-
-    /// App became logically active (foregrounded). GPU surfaces are still valid here.
+    /// App became logically active (foregrounded). GPU surfaces are valid here.
     func appResumed(_ eventLoop: EventLoop)
 
-    /// App became logically inactive (backgrounded). GPU surfaces are still valid here.
+    /// App became logically inactive (backgrounded).
+    /// Drop all GPU surfaces (wgpu::Surface, EGLSurface, VkSurfaceKHR…) before returning —
+    /// the OS may destroy the underlying native window immediately after this returns.
     func appSuspended(_ eventLoop: EventLoop)
 
     /// Event batch complete; loop is about to sleep. Good place to submit frames in game loops.
     func aboutToWait(_ eventLoop: EventLoop)
+
+    /// Event loop is permanently exiting. Called once at shutdown.
+    func exiting(_ eventLoop: EventLoop)
 
     /// Low-memory warning from the OS (Android / iOS).
     func memoryWarning(_ eventLoop: EventLoop)
 }
 
 extension EventLoopDelegate {
-    public func destroySurfaces(_ eventLoop: EventLoop) {}
     public func appResumed(_ eventLoop: EventLoop) {}
     public func appSuspended(_ eventLoop: EventLoop) {}
     public func aboutToWait(_ eventLoop: EventLoop) {}
+    public func exiting(_ eventLoop: EventLoop) {}
     public func memoryWarning(_ eventLoop: EventLoop) {}
 }

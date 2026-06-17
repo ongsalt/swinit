@@ -22,16 +22,14 @@ final class Demo: EventLoopDelegate {
         openMainWindow(eventLoop)
     }
 
-    func destroySurfaces(_ eventLoop: EventLoop) {
-        // Drop GPU resources here. On Android the native window is destroyed
-        // immediately after this returns; on desktop it fires at quit.
+    func appResumed(_ eventLoop: EventLoop)   { print("app resumed")   }
+
+    func appSuspended(_ eventLoop: EventLoop) {
+        // Drop GPU resources here — the OS may destroy the native window after this returns.
         #if os(Linux)
         renderers.removeAll()
         #endif
     }
-
-    func appResumed(_ eventLoop: EventLoop)   { print("app resumed")   }
-    func appSuspended(_ eventLoop: EventLoop) { print("app suspended") }
 
     func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent) {
         // Global handler — fires after the per-window onEvent closure.
