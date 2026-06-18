@@ -13,7 +13,7 @@ public protocol EventLoopDelegate: AnyObject {
     /// On desktop this fires once at startup; on Android it may fire multiple times.
     func canCreateSurfaces(_ eventLoop: EventLoop)
 
-    /// A window event arrived. Per-window `onEvent` fires first, then this.
+    /// A window event arrived.
     func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent)
 
     /// App became logically active (foregrounded). GPU surfaces are valid here.

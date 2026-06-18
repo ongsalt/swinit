@@ -14,7 +14,6 @@ public final class Window {
     public let id: WindowId
     public private(set) var isClosed = false
     weak var eventLoop: EventLoop?
-    public var onEvent: (@MainActor (WindowEvent) -> Void)?
     var _title: String
     var _size: Size
 
@@ -112,7 +111,6 @@ public final class Window {
     }
 
     func dispatch(_ event: WindowEvent) {
-        onEvent?(event)
         if let eventLoop { eventLoop.delegate?.windowEvent(eventLoop, window: self, event: event) }
     }
 
