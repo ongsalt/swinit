@@ -103,6 +103,7 @@ final class Demo: EventLoopDelegate {
             renderers.removeValue(forKey: win.id)
             #endif
             win.close()   // fires .destroyed → windowEvent checks if windows is now empty
+            eventLoop.quit()
 
         case .keyboardInput(_, let key, _) where key.state == .pressed:
             // Press N to open a second window, demonstrating multi-window support.

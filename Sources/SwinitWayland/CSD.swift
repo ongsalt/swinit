@@ -16,6 +16,10 @@ package enum CSDArea {
     case borderBottom
 }
 
+package enum HoveredButton: Equatable {
+    case close, minimize, maximize
+}
+
 // MARK: - Layout constants
 
 package enum CSDConstants {
@@ -25,20 +29,21 @@ package enum CSDConstants {
     package static let shadowMargin: Int32 = 12
     package static let cornerRadius: Double = 8.0
 
-    package static let buttonRadius: Double = 7.0
+    package static let buttonRadius: Double = 8.4
     package static let buttonSpacing: Double = 5.0
-    package static let buttonMarginLeft: Double = 12.0
+    package static let buttonMargin: Double = Double(titleBarHeight) / 2.0 - buttonRadius
 
     static let titleBarRGBA = (r: 0.169, g: 0.169, b: 0.169, a: 1.0)
     static let titleBarInactiveRGBA = (r: 0.239, g: 0.239, b: 0.239, a: 1.0)
-    static let borderRGBA = (r: 0.118, g: 0.118, b: 0.118, a: 1.0)
     static let titleTextRGBA = (r: 1.0, g: 1.0, b: 1.0, a: 0.85)
     static let titleTextInactiveRGBA = (r: 1.0, g: 1.0, b: 1.0, a: 0.4)
 
-    static let closeRGBA = (r: 1.0, g: 0.373, b: 0.341, a: 1.0)
-    static let minimizeRGBA = (r: 1.0, g: 0.741, b: 0.180, a: 1.0)
-    static let maximizeRGBA = (r: 0.157, g: 0.792, b: 0.255, a: 1.0)
-    static let buttonInactiveRGBA = (r: 0.427, g: 0.427, b: 0.427, a: 1.0)
+    static let buttonBgRGBA         = (r: 0.45, g: 0.45, b: 0.45, a: 0.9)
+    static let buttonBgInactiveRGBA = (r: 0.35, g: 0.35, b: 0.35, a: 0.5)
+    static let buttonHoverRGBA      = (r: 0.65, g: 0.65, b: 0.65, a: 1.0)
+    static let closeHoverRGBA       = (r: 0.85, g: 0.22, b: 0.22, a: 0.9)
+    static let buttonIconRGBA         = (r: 1.0, g: 1.0, b: 1.0, a: 0.85)
+    static let buttonIconInactiveRGBA = (r: 1.0, g: 1.0, b: 1.0, a: 0.3)
 }
 
 // MARK: - Reusable SHM buffer
@@ -150,9 +155,9 @@ package final class CSDLayer {
     private let shadow: CSDSubsurface
 
     package let buttonRadius: Double = CSDConstants.buttonRadius
-    package let closeCenter: SIMD2<Double>
-    package let minimizeCenter: SIMD2<Double>
-    package let maximizeCenter: SIMD2<Double>
+    package private(set) var closeCenter: SIMD2<Double> = .zero
+    package private(set) var minimizeCenter: SIMD2<Double> = .zero
+    package private(set) var maximizeCenter: SIMD2<Double> = .zero
 
     package var titleBarSurfaceId: UInt32 { titleBar.surface.id }
     package var topSurfaceId: UInt32 { top.surface.id }
@@ -161,6 +166,7 @@ package final class CSDLayer {
     package var bottomSurfaceId: UInt32 { bottom.surface.id }
 
     private var cache: (size: Size, title: String, maximized: Bool, activated: Bool)?
+    package var hoveredButton: HoveredButton? = nil
 
     package init(
         compositor: WlCompositor, subcompositor: WlSubcompositor, shm: WlShm,
@@ -185,15 +191,6 @@ package final class CSDLayer {
         try shadow.surface.setInputRegion(region: emptyRegion)
         try emptyRegion.destroy()
 
-        let cy = Double(CSDConstants.titleBarHeight) / 2.0
-        let bR = CSDConstants.buttonRadius
-        let bSp = CSDConstants.buttonSpacing
-        let bML = CSDConstants.buttonMarginLeft
-        let cx0 = bML + bR
-        closeCenter = SIMD2(cx0, cy)
-        minimizeCenter = SIMD2(cx0 + 2 * bR + bSp, cy)
-        maximizeCenter = SIMD2(cx0 + 4 * bR + 2 * bSp, cy)
-
         try update(
             shm: shm, contentSize: contentSize, title: title,
             maximized: false, activated: activated)
@@ -203,6 +200,15 @@ package final class CSDLayer {
         shm: WlShm, contentSize: Size, title: String,
         maximized: Bool, activated: Bool
     ) throws {
+        let cy  = Double(CSDConstants.titleBarHeight) / 2.0
+        let bR  = CSDConstants.buttonRadius
+        let bSp = CSDConstants.buttonSpacing
+        let bM  = CSDConstants.buttonMargin
+        let w   = Double(contentSize.width)
+        closeCenter    = SIMD2(w - bM - bR, cy)
+        maximizeCenter = SIMD2(w - bM - 3 * bR - bSp, cy)
+        minimizeCenter = SIMD2(w - bM - 5 * bR - 2 * bSp, cy)
+
         let prev = cache
         cache = (contentSize, title, maximized, activated)
 
@@ -215,7 +221,7 @@ package final class CSDLayer {
         let bordersDirty = sizeChanged || prev?.maximized != maximized
         guard titleBarDirty || bordersDirty else { return }
 
-        let cW = max(Int(contentSize.width), 1)
+        let cW = max(Int(contentSize.width), 1)  // pixel width for layout
         let cH = max(Int(contentSize.height), 1)
         let gW = Int(CSDConstants.resizeGrabWidth)
         let tH = Int(CSDConstants.titleBarHeight)
@@ -226,11 +232,12 @@ package final class CSDLayer {
                 shm: shm,
                 x: 0, y: -Int32(tH),
                 width: cW, height: tH
-            ) { ptr, w, h in
+            ) { [hoveredButton] ptr, w, h in
                 cairoDrawTitleBar(
                     ptr, width: w, height: h,
                     title: title, activated: activated,
-                    roundTopCorners: !maximized)
+                    roundTopCorners: !maximized,
+                    hoveredButton: hoveredButton)
             }
         }
 
@@ -278,6 +285,29 @@ package final class CSDLayer {
                 }
             }
         }
+    }
+
+    /// Updates hover state and redraws the title bar if it changed.
+    /// Returns true if a redraw happened — caller should commit the parent surface.
+    @discardableResult
+    package func setHovered(_ button: HoveredButton?, shm: WlShm) throws -> Bool {
+        guard button != hoveredButton else { return false }
+        hoveredButton = button
+        guard let cache else { return false }
+        let cW = max(Int(cache.size.width), 1)
+        let tH = Int(CSDConstants.titleBarHeight)
+        let cachedTitle = cache.title
+        let cachedActivated = cache.activated
+        let cachedMaximized = cache.maximized
+        let hovered = hoveredButton
+        try titleBar.render(shm: shm, x: 0, y: -Int32(tH), width: cW, height: tH) { ptr, w, h in
+            cairoDrawTitleBar(
+                ptr, width: w, height: h,
+                title: cachedTitle, activated: cachedActivated,
+                roundTopCorners: !cachedMaximized,
+                hoveredButton: hovered)
+        }
+        return true
     }
 }
 
@@ -331,10 +361,13 @@ private func cairoSet(_ cr: OpaquePointer, r: Double, g: Double, b: Double, a: D
     cairo_set_source_rgba(cr, r, g, b, a)
 }
 
+private enum ButtonIcon { case close, minimize, maximize }
+
 private func cairoDrawTitleBar(
     _ ptr: UnsafeMutableRawPointer,
     width: Int, height: Int,
-    title: String, activated: Bool, roundTopCorners: Bool
+    title: String, activated: Bool, roundTopCorners: Bool,
+    hoveredButton: HoveredButton?
 ) {
     withCairo(ptr, width: width, height: height) { cr in
         cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR)
@@ -352,24 +385,50 @@ private func cairoDrawTitleBar(
         }
         cairo_fill(cr)
 
-        let bR = CSDConstants.buttonRadius
+        let bR  = CSDConstants.buttonRadius
         let bSp = CSDConstants.buttonSpacing
-        let bML = CSDConstants.buttonMarginLeft
-        let cy = Double(height) / 2.0
-        let closeX = bML + bR
-        let minX = closeX + 2 * bR + bSp
-        let maxX = minX + 2 * bR + bSp
+        let bM  = CSDConstants.buttonMargin
+        let cy  = Double(height) / 2.0
+        let cW  = Double(width)
+        let closeX = cW - bM - bR
+        let maxX   = closeX - 2 * bR - bSp
+        let minX   = maxX   - 2 * bR - bSp
 
-        func drawButton(cx: Double, rgba: (r: Double, g: Double, b: Double, a: Double)) {
-            let c = activated ? rgba : CSDConstants.buttonInactiveRGBA
-            cairoSet(cr, r: c.r, g: c.g, b: c.b, a: c.a)
+        func drawButton(cx: Double, icon: ButtonIcon, hovered: Bool) {
+            let bgC: (r: Double, g: Double, b: Double, a: Double)
+            if hovered {
+                bgC = (icon == .close) ? CSDConstants.closeHoverRGBA : CSDConstants.buttonHoverRGBA
+            } else if activated {
+                bgC = CSDConstants.buttonBgRGBA
+            } else {
+                bgC = CSDConstants.buttonBgInactiveRGBA
+            }
+            cairoSet(cr, r: bgC.r, g: bgC.g, b: bgC.b, a: bgC.a)
             cairo_new_path(cr)
             cairo_arc(cr, cx, cy, bR, 0, 2 * Double.pi)
             cairo_fill(cr)
+
+            let ic = activated ? CSDConstants.buttonIconRGBA : CSDConstants.buttonIconInactiveRGBA
+            cairoSet(cr, r: ic.r, g: ic.g, b: ic.b, a: ic.a)
+            cairo_set_line_width(cr, 1.3)
+            cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND)
+            let s = bR * 0.42
+            switch icon {
+            case .close:
+                cairo_move_to(cr, cx - s, cy - s); cairo_line_to(cr, cx + s, cy + s); cairo_stroke(cr)
+                cairo_move_to(cr, cx + s, cy - s); cairo_line_to(cr, cx - s, cy + s); cairo_stroke(cr)
+            case .minimize:
+                cairo_move_to(cr, cx - s, cy); cairo_line_to(cr, cx + s, cy); cairo_stroke(cr)
+            case .maximize:
+                cairo_set_line_join(cr, CAIRO_LINE_JOIN_MITER)
+                cairo_rectangle(cr, cx - s, cy - s, 2 * s, 2 * s)
+                cairo_stroke(cr)
+            }
         }
-        drawButton(cx: closeX, rgba: CSDConstants.closeRGBA)
-        drawButton(cx: minX, rgba: CSDConstants.minimizeRGBA)
-        drawButton(cx: maxX, rgba: CSDConstants.maximizeRGBA)
+
+        drawButton(cx: minX,   icon: .minimize, hovered: hoveredButton == .minimize)
+        drawButton(cx: maxX,   icon: .maximize, hovered: hoveredButton == .maximize)
+        drawButton(cx: closeX, icon: .close,    hovered: hoveredButton == .close)
 
         if !title.isEmpty {
             let text = activated ? CSDConstants.titleTextRGBA : CSDConstants.titleTextInactiveRGBA

@@ -69,10 +69,11 @@
         func platformWindowRemoved(id: WindowId) {
             surfaceToWindow = surfaceToWindow.filter { $0.value != id }
             if pointerWindow?.id == id {
-                pointerWindow = nil
                 #if WaylandCSD
+                if csdRouter.activeArea == .titleBar { pointerWindow?.clearCSDHover() }
                 csdRouter.reset()
                 #endif
+                pointerWindow = nil
             }
             if keyboardWindow?.id == id { keyboardWindow = nil }
         }
@@ -97,6 +98,7 @@
                 case .enter(_, let surface, let x, let y):
                     guard let surface else { return }
                     #if WaylandCSD
+                    if csdRouter.activeArea == .titleBar { pointerWindow?.clearCSDHover() }
                     csdRouter.reset()
                     if let win = findWindow(bySurfaceId: surface.id) {
                         pointerWindow = win
@@ -124,15 +126,19 @@
                     if let win = findWindow(bySurfaceId: surface.id) {
                         win.dispatch(.cursorLeft(deviceId: .placeholder))
                     }
-                    pointerWindow = nil
                     #if WaylandCSD
+                    if csdRouter.activeArea == .titleBar { pointerWindow?.clearCSDHover() }
                     csdRouter.reset()
                     #endif
+                    pointerWindow = nil
 
                 case .motion(_, let x, let y):
                     #if WaylandCSD
                     if csdRouter.activeArea != nil {
                         csdRouter.move(x: x, y: y)
+                        if csdRouter.activeArea == .titleBar {
+                            pointerWindow?.updateCSDHover(x: x, y: y)
+                        }
                     } else if let win = pointerWindow {
                         win.dispatch(
                             .cursorMoved(deviceId: .placeholder, position: PhysicalPosition(x, y)))

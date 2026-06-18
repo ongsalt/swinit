@@ -77,15 +77,38 @@
         #endif
 
         #if WaylandCSD
+        func updateCSDHover(x: Double, y: Double) {
+            guard let csd, let shm = eventLoop?.waylandShm else { return }
+            let half = Double(CSDConstants.titleBarHeight) / 2.0
+            func hit(_ c: SIMD2<Double>) -> Bool {
+                abs(x - c.x) <= half && abs(y - c.y) <= half
+            }
+            let button: HoveredButton?
+            if hit(csd.closeCenter) { button = .close }
+            else if hit(csd.maximizeCenter) { button = .maximize }
+            else if hit(csd.minimizeCenter) { button = .minimize }
+            else { button = nil }
+            if (try? csd.setHovered(button, shm: shm)) == true {
+                try? surface.commit()
+            }
+        }
+
+        func clearCSDHover() {
+            guard let csd, let shm = eventLoop?.waylandShm else { return }
+            if (try? csd.setHovered(nil, shm: shm)) == true {
+                try? surface.commit()
+            }
+        }
+        #endif
+
+        #if WaylandCSD
         func handleCSDPress(area: CSDArea, x: Double, y: Double, seat: WlSeat, serial: UInt32) {
             switch area {
             case .titleBar:
                 guard let csd else { return }
-                let r = csd.buttonRadius
+                let half = Double(CSDConstants.titleBarHeight) / 2.0
                 func hit(_ c: SIMD2<Double>) -> Bool {
-                    let dx = x - c.x
-                    let dy = y - c.y
-                    return dx * dx + dy * dy <= r * r
+                    abs(x - c.x) <= half && abs(y - c.y) <= half
                 }
                 if hit(csd.closeCenter) {
                     dispatch(.closeRequested)
