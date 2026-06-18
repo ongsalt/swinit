@@ -30,7 +30,6 @@ final class Demo: EventLoopDelegate {
 
     func windowEvent(_ eventLoop: EventLoop, window: Window, event: WindowEvent) {
         switch event {
-
         case .resized(let size, let isFinal):
             guard isFinal else { return }
             #if os(Linux)
@@ -66,10 +65,9 @@ final class Demo: EventLoopDelegate {
                 eventLoop.quit()
             }
 
-
         case .keyboardInput(_, let key, _) where key.state == .pressed:
             // Press N to open a second window, demonstrating multi-window support.
-            if key.logicalKey == 0x6E /* 'n' */ {
+            if key.logicalKey == 49 /* 'n' */ {
                 openMainWindow(eventLoop)
             }
 
