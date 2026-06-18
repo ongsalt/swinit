@@ -45,7 +45,6 @@
             KillTimer(nil, heartbeatTimer)
         }
 
-        /// Poll-mode entry point for game loops. Calls `aboutToWait` each frame.
         public func runPolling() {
             Window.registerWindowClass()
             delegate?.canCreateSurfaces(self)
@@ -58,7 +57,6 @@
                     TranslateMessage(&msg)
                     DispatchMessageW(&msg)
                 }
-                delegate?.aboutToWait(self)
 
                 var time: Date?
                 repeat {
@@ -71,8 +69,7 @@
                     QS_ALLINPUT | DWORD(QS_KEY) | DWORD(QS_TOUCH) | QS_MOUSE | DWORD(QS_RAWINPUT))
             }
 
-            delegate?.appSuspended(self)
-            delegate?.destroySurfaces(self)
+            delegate?.exiting(self)
         }
     }
 
