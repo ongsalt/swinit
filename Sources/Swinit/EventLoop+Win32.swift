@@ -28,7 +28,7 @@
 
         func platformWindowRemoved(id: WindowId) {}
 
-        // copied from https://github.com/compnerd/swift-win32/blob/d34ff1b8b3f15cfdf2cb71109a3c313001122a54/Sources/SwiftWin32/App%20and%20Environment/ApplicationMain.swift
+        // modified from https://github.com/compnerd/swift-win32/blob/d34ff1b8b3f15cfdf2cb71109a3c313001122a54/Sources/SwiftWin32/App%20and%20Environment/ApplicationMain.swift
         func runPolling() {
             var msg = MSG()
             outer: while true {
@@ -45,8 +45,10 @@
 
                 _ = MsgWaitForMultipleObjects(
                     0, nil, false,
-                    DWORD(exactly: time?.timeIntervalSinceNow ?? -1) ?? INFINITE,
-                    QS_ALLINPUT)
+                    // time is .distantFuture even we have a `Task.sleep(for:)`, so just hardcoded it to 1
+                    // its timeIntervalSinceNow is appoximately 6 * 10^ 11 now, which exceed UInt32(aka. DWORD).max
+                    DWORD(exactly: time?.timeIntervalSinceNow ?? -1) ?? 1,
+                    QS_ALLINPUT | DWORD(QS_KEY) | QS_MOUSE | DWORD(QS_RAWINPUT))
             }
         }
     }
