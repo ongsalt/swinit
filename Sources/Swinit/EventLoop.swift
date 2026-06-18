@@ -58,6 +58,7 @@ public final class EventLoop {
 
 #if os(Linux)
     var connection: Connection?
+    var connectionWatch: WaylandClient.Watch? = nil
     var xdgWmBase:            XdgWmBase?
     var seat:                 WlSeat?
     var pointer:              WlPointer?

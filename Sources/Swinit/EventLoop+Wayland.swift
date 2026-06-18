@@ -36,11 +36,9 @@
             delegate?.canCreateSurfaces(self)
             delegate?.appResumed(self)
 
-            var watch = conn.attach()
-            RunLoop.main.run()
-            watch.cancel()
-
-            delegate?.exiting(self)
+            connectionWatch = conn.attach()
+            CFRunLoopRun()
+            connectionWatch = nil
         }
 
         func platformOpenWindow(_ attributes: WindowAttributes) -> Window {
@@ -152,12 +150,16 @@
 
                 case .button(let serial, _, let button, let state):
                     #if WaylandCSD
-                    if let area = csdRouter.activeArea, let win = pointerWindow,
-                        button == 0x110, state == .pressed
-                    {
-                        win.handleCSDPress(
-                            area: area, x: csdRouter.x, y: csdRouter.y,
-                            seat: self.seat!, serial: serial)
+                    if let area = csdRouter.activeArea, let win = pointerWindow, state == .pressed {
+                        if button == 0x110 {
+                            win.handleCSDPress(
+                                area: area, x: csdRouter.x, y: csdRouter.y,
+                                seat: self.seat!, serial: serial)
+                        } else if button == 0x111, area == .titleBar {
+                            try? win.toplevel.showWindowMenu(
+                                seat: self.seat!, serial: serial,
+                                x: Int32(csdRouter.x), y: Int32(csdRouter.y) - CSDConstants.titleBarHeight)
+                        }
                     } else if csdRouter.activeArea == nil, let win = pointerWindow {
                         win.dispatch(
                             .mouseInput(
