@@ -12,7 +12,7 @@
             delegate?.canCreateSurfaces(self)
             delegate?.appResumed(self)
 
-            runWaitingLoop()
+            runPolling()
 
             delegate?.exiting(self)
         }
@@ -28,28 +28,8 @@
 
         func platformWindowRemoved(id: WindowId) {}
 
-        private func runWaitingLoop() {
-            var msg = MSG()
-            let heartbeatTimer = SetTimer(nil, 0, Self.tickIntervalMs, nil)
-            while GetMessageW(&msg, nil, 0, 0) {
-                switch msg.message {
-                case UINT(WM_TIMER) where msg.wParam == heartbeatTimer:
-                    RunLoop.main.run(until: .distantPast)
-                case UINT(WM_QUIT):
-                    break
-                default:
-                    TranslateMessage(&msg)
-                    DispatchMessageW(&msg)
-                }
-            }
-            KillTimer(nil, heartbeatTimer)
-        }
-
-        public func runPolling() {
-            Window.registerWindowClass()
-            delegate?.canCreateSurfaces(self)
-            delegate?.appResumed(self)
-
+        // copied from https://github.com/compnerd/swift-win32/blob/d34ff1b8b3f15cfdf2cb71109a3c313001122a54/Sources/SwiftWin32/App%20and%20Environment/ApplicationMain.swift
+        func runPolling() {
             var msg = MSG()
             outer: while true {
                 while PeekMessageW(&msg, nil, 0, 0, UINT(PM_REMOVE)) {
@@ -65,11 +45,9 @@
 
                 _ = MsgWaitForMultipleObjects(
                     0, nil, false,
-                    DWORD(exactly: time?.timeIntervalSinceNow ?? -1) ?? 0,
-                    QS_ALLINPUT | DWORD(QS_KEY) | DWORD(QS_TOUCH) | QS_MOUSE | DWORD(QS_RAWINPUT))
+                    DWORD(exactly: time?.timeIntervalSinceNow ?? -1) ?? INFINITE,
+                    QS_ALLINPUT)
             }
-
-            delegate?.exiting(self)
         }
     }
 

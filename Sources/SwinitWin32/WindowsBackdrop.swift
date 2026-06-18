@@ -15,7 +15,7 @@ public enum TitleBarAppearance {
     case dark
     case light
 
-    var resolvedDark: Bool {
+    package var resolvedDark: Bool {
         switch self {
         case .dark:   return true
         case .light:  return false

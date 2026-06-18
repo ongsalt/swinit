@@ -67,7 +67,7 @@ final class Demo: EventLoopDelegate {
 
         case .keyboardInput(_, let key, _) where key.state == .pressed:
             // Press N to open a second window, demonstrating multi-window support.
-            if key.logicalKey == 49 /* 'n' */ {
+            if key.physicalKey == 49 /* 'n' */ {
                 openMainWindow(eventLoop)
             }
 
@@ -103,5 +103,14 @@ final class Demo: EventLoopDelegate {
 }
 
 // MARK: - Entry point
+
+Task {
+    var i = 1
+    while !Task.isCancelled {
+        print(i)
+        try await Task.sleep(for: .milliseconds(300))
+        i += 1
+    }
+}
 
 EventLoop().run(Demo())

@@ -2,6 +2,7 @@
     import SwinitCore
     import WinSDK
     import SwinitWin32
+    import Foundation
 
     // MARK: - Win32 computed properties (backed by stored vars in Window.swift)
 
@@ -108,7 +109,7 @@
                 return 0
 
             case UINT(WM_TIMER) where currentHeartbeatTimer != nil:
-                RunLoop.main.run(until: .distantPast)
+                RunLoop.main.run(mode: .default, before: .distantPast)
                 return 0
 
             case UINT(WM_EXITSIZEMOVE):
@@ -124,15 +125,15 @@
                 return 0
 
             case UINT(WM_SIZE):
-                let sz = Size(width: UInt32(LOWORD(lParam)), height: UInt32(HIWORD(lParam)))
+                let sz = Size(width: UInt32(SwinitWin32.LOWORD(lParam)), height: UInt32(SwinitWin32.HIWORD(lParam)))
                 _size = sz
                 dispatch(.resized(size: sz, isFinal: !isResizing))
                 return 0
 
             case UINT(WM_MOVE):
                 let pos = PhysicalPosition(
-                    Int32(Int16(bitPattern: LOWORD(lParam))),
-                    Int32(Int16(bitPattern: HIWORD(lParam))))
+                    Int32(Int16(bitPattern: SwinitWin32.LOWORD(lParam))),
+                    Int32(Int16(bitPattern: SwinitWin32.HIWORD(lParam))))
                 dispatch(.moved(pos))
                 return 0
 
@@ -152,8 +153,8 @@
 
             case UINT(WM_MOUSEMOVE):
                 let pos = PhysicalPosition(
-                    Double(Int16(bitPattern: LOWORD(lParam))),
-                    Double(Int16(bitPattern: HIWORD(lParam))))
+                    Double(Int16(bitPattern: SwinitWin32.LOWORD(lParam))),
+                    Double(Int16(bitPattern: SwinitWin32.HIWORD(lParam))))
                 dispatch(.cursorMoved(deviceId: .placeholder, position: pos))
                 var tme = TRACKMOUSEEVENT(
                     cbSize: UInt32(MemoryLayout<TRACKMOUSEEVENT>.size),
@@ -185,7 +186,7 @@
                 dispatch(
                     .mouseWheel(
                         deviceId: .placeholder,
-                        delta: wheelDelta(hiword: HIWORD(wParam), horizontal: false),
+                        delta: wheelDelta(hiword: SwinitWin32.HIWORD(wParam), horizontal: false),
                         phase: .moved))
                 return 0
 
@@ -193,7 +194,7 @@
                 dispatch(
                     .mouseWheel(
                         deviceId: .placeholder,
-                        delta: wheelDelta(hiword: HIWORD(wParam), horizontal: true),
+                        delta: wheelDelta(hiword: SwinitWin32.HIWORD(wParam), horizontal: true),
                         phase: .moved))
                 return 0
 
@@ -289,7 +290,7 @@
         case UINT(WM_RBUTTONDOWN), UINT(WM_RBUTTONUP): return .right
         case UINT(WM_MBUTTONDOWN), UINT(WM_MBUTTONUP): return .middle
         default:
-            let btn = HIWORD(wParam)
+            let btn = SwinitWin32.HIWORD(wParam)
             return btn == XBUTTON1 ? .back : (btn == XBUTTON2 ? .forward : .other(btn))
         }
     }
