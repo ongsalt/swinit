@@ -43,6 +43,13 @@
                     time = RunLoop.main.limitDate(forMode: .default)
                 } while (time?.timeIntervalSinceNow ?? -1) <= 0
 
+                delegate?.aboutToWait(self)
+
+                for window in Array(windows.values) where window._pendingRedraw {
+                    window._pendingRedraw = false
+                    window.dispatch(.redrawRequested)
+                }
+
                 _ = MsgWaitForMultipleObjects(
                     0, nil, false,
                     // time is .distantFuture even we have a `Task.sleep(for:)`, so just hardcoded it to 1

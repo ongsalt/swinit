@@ -65,6 +65,7 @@ public final class Window {
     var _titleBarAppearance: TitleBarAppearance = .system
     var isResizing = false
     var currentHeartbeatTimer: UInt64?
+    var _pendingRedraw = false
 
     init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes) {
         self.id        = id

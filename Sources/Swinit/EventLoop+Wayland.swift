@@ -38,6 +38,15 @@
             delegate?.appResumed(self)
 
             connectionWatch = conn.attach()
+
+            let aboutToWaitObserver = CFRunLoopObserverCreateWithHandler(
+                nil, CFRunLoopActivity.beforeWaiting.rawValue, true, 0
+            ) { [weak self] _, _ in
+                guard let self else { return }
+                MainActor.assumeIsolated { self.delegate?.aboutToWait(self) }
+            }
+            CFRunLoopAddObserver(CFRunLoopGetCurrent(), aboutToWaitObserver, kCFRunLoopDefaultMode)
+
             CFRunLoopRun()
             connectionWatch = nil
         }

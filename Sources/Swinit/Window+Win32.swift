@@ -72,7 +72,7 @@
             title.withCString(encodedAs: UTF16.self) { SetWindowTextW(handle, $0) }
         }
 
-        func platformRequestRedraw() { InvalidateRect(handle, nil, false) }
+        func platformRequestRedraw() { _pendingRedraw = true }
 
         func platformRequestResize(to size: Size) {
             SetWindowPos(
