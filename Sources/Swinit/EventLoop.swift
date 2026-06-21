@@ -64,9 +64,10 @@ public final class EventLoop {
     var pointer:              WlPointer?
     var keyboard:             WlKeyboard?
     var waylandCompositor:    WlCompositor?
-    var waylandDecoManager:   ZxdgDecorationManagerV1?
-    var waylandSubcompositor: WlSubcompositor?
-    var waylandShm:           WlShm?
+    var waylandDecoManager:          ZxdgDecorationManagerV1?
+    var waylandSubcompositor:        WlSubcompositor?
+    var waylandShm:                  WlShm?
+    var waylandFractionalScaleManager: WpFractionalScaleManagerV1?
     #if WaylandCSD
     var csdRouter = CSDInputRouter()
     #endif

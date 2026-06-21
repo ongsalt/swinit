@@ -16,6 +16,7 @@ public final class Window {
     weak var eventLoop: EventLoop?
     var _title: String
     var _size: Size
+    var _scaleFactor: Double = 1.0
 
     // MARK: Platform stored properties — implementations in Window+<Platform>.swift
 
@@ -34,6 +35,7 @@ public final class Window {
     var isMaximized = false
     var isActivated = true
     var pendingFrameCallback = false
+    var fractionalScale: WpFractionalScaleV1?
     #if WaylandCSD
     var csd: CSDLayer?
     #endif
@@ -86,6 +88,7 @@ public final class Window {
     }
 
     public var size: Size { _size }
+    public var scaleFactor: Double { _scaleFactor }
 
     public func requestRedraw() {
         guard !isClosed else { return }

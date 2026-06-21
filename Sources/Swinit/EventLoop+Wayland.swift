@@ -20,6 +20,7 @@
                 waylandDecoManager = try? g.bind(to: ZxdgDecorationManagerV1.self, version: 1...1)
                 waylandSubcompositor = try? g.bind(to: WlSubcompositor.self, version: 1...1)
                 waylandShm = try? g.bind(to: WlShm.self, version: 1...2)
+                waylandFractionalScaleManager = try? g.bind(to: WpFractionalScaleManagerV1.self, version: 1...1)
             } catch {
                 fatalError("Failed to bind Wayland globals: \(error)")
             }
@@ -53,6 +54,10 @@
             let window = Window(
                 id: id, eventLoop: self, attributes: attributes,
                 surface: surface, xdgSurface: xdgSurf, toplevel: toplevel)
+            if let manager = waylandFractionalScaleManager {
+                window.fractionalScale = try? manager.getFractionalScale(surface: surface)
+            }
+            window.setupScaleCallbacks()
             windows[id] = window
             surfaceToWindow[surface.id] = id
             // No roundtrip — configure fires naturally in the run loop AFTER the caller

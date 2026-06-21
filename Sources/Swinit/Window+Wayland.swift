@@ -153,6 +153,26 @@
         }
         #endif
 
+        func setupScaleCallbacks() {
+            if let fs = fractionalScale {
+                fs.onEvent = { [weak self] event in
+                    guard let self, case .preferredScale(let raw) = event else { return }
+                    let factor = Double(raw) / 120.0
+                    guard factor != _scaleFactor else { return }
+                    _scaleFactor = factor
+                    dispatch(.scaleFactorChanged(scaleFactor: factor))
+                }
+            } else {
+                surface.onEvent = { [weak self] event in
+                    guard let self, case .preferredBufferScale(let factor) = event else { return }
+                    let scale = Double(factor)
+                    guard scale != _scaleFactor else { return }
+                    _scaleFactor = scale
+                    dispatch(.scaleFactorChanged(scaleFactor: scale))
+                }
+            }
+        }
+
         func setupCallbacks() {
             toplevel.onEvent = { [weak self] event in
                 guard let self else { return }

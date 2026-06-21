@@ -15,7 +15,7 @@ let package = Package(
         .default(enabledTraits: ["WaylandCSD"])
     ],
     dependencies: [
-        .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master")
+        .package(url: "https://github.com/ongsalt/SwiftWayland", branch: "master", traits: ["XDG", "WP"])
     ],
     targets: [
         .systemLibrary(

@@ -62,6 +62,8 @@
                 handle, nil, 0, 0, 0, 0,
                 UInt32(SWP_NOSIZE) | UInt32(SWP_NOMOVE) | UInt32(SWP_DRAWFRAME)
                     | UInt32(SWP_SHOWWINDOW))
+
+            _scaleFactor = Double(GetDpiForWindow(handle)) / 96.0
         }
 
         // MARK: Platform methods
@@ -213,6 +215,17 @@
                     logicalKey: UInt32(wParam), state: .released, isRepeat: false)
                 dispatch(.modifiersChanged(captureModifiers()))
                 dispatch(.keyboardInput(deviceId: .placeholder, event: ev, isSynthetic: false))
+                return 0
+
+            case UINT(WM_DPICHANGED):
+                _scaleFactor = Double(SwinitWin32.LOWORD(wParam)) / 96.0
+                dispatch(.scaleFactorChanged(scaleFactor: _scaleFactor))
+                let rect = UnsafePointer<RECT>(bitPattern: Int(lParam))!.pointee
+                SetWindowPos(
+                    handle, nil,
+                    rect.left, rect.top,
+                    rect.right - rect.left, rect.bottom - rect.top,
+                    UINT(SWP_NOZORDER | SWP_NOACTIVATE))
                 return 0
 
             case UINT(WM_PAINT):

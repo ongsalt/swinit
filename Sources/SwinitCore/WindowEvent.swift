@@ -84,4 +84,5 @@ public enum WindowEvent: Sendable {
     case mouseWheel(deviceId: DeviceId, delta: MouseScrollDelta, phase: TouchPhase)
     case mouseInput(deviceId: DeviceId, state: ElementState, button: MouseButton)
     case redrawRequested
+    case scaleFactorChanged(scaleFactor: Double)
 }
