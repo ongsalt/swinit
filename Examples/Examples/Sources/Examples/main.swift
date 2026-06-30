@@ -10,7 +10,7 @@ final class Demo: EventLoopDelegate {
     var windows: [WindowId: Window] = [:]
 
     #if os(Linux)
-    var renderers: [WindowId: ShmRenderer] = [:]
+        var renderers: [WindowId: ShmRenderer] = [:]
     #endif
 
     // MARK: Lifecycle
@@ -24,7 +24,7 @@ final class Demo: EventLoopDelegate {
 
     func appSuspended(_ eventLoop: EventLoop) {
         #if os(Linux)
-        renderers.removeAll()
+            renderers.removeAll()
         #endif
     }
 
@@ -33,20 +33,20 @@ final class Demo: EventLoopDelegate {
         case .resized(let size, let isFinal):
             guard isFinal else { return }
             #if os(Linux)
-            // Register a frame callback before presenting so the compositor
-            // can throttle us to the display refresh rate.
-            renderers[window.id]?.render(
-                to: window.surface,
-                width: Int(size.width),
-                height: Int(size.height))
+                // Register a frame callback before presenting so the compositor
+                // can throttle us to the display refresh rate.
+                renderers[window.id]?.render(
+                    to: window.surface,
+                    width: Int(size.width),
+                    height: Int(size.height))
             #endif
 
         case .redrawRequested:
             #if os(Linux)
-            renderers[window.id]?.render(
-                to: window.surface,
-                width: Int(window.size.width),
-                height: Int(window.size.height))
+                renderers[window.id]?.render(
+                    to: window.surface,
+                    width: Int(window.size.width),
+                    height: Int(window.size.height))
             #endif
 
         case .stateChanged(let state):
@@ -58,9 +58,9 @@ final class Demo: EventLoopDelegate {
         case .closeRequested:
             windows.removeValue(forKey: window.id)
             #if os(Linux)
-            renderers.removeValue(forKey: window.id)
+                renderers.removeValue(forKey: window.id)
             #endif
-            window.close()   // fires .destroyed → windowEvent checks if windows is now empty
+            window.close()  // fires .destroyed → windowEvent checks if windows is now empty
             if windows.isEmpty {
                 eventLoop.quit()
             }
@@ -72,30 +72,31 @@ final class Demo: EventLoopDelegate {
             }
 
         default:
-            break
+            print(event)
         }
     }
 
     // MARK: Window setup
 
     private func openMainWindow(_ eventLoop: EventLoop) {
-        let window = eventLoop.openWindow(.init(
-            title: "example",
-            size: .init(width: 1280, height: 720)
-        ))
+        let window = eventLoop.openWindow(
+            .init(
+                title: "example",
+                size: .init(width: 1280, height: 720)
+            ))
 
         #if os(Linux)
-        // Wayland: create a SHM software renderer using the window's surface.
-        // Real apps would pass window.surface / window.display to wgpu, EGL, or Vulkan.
-        if let shm = eventLoop.shm {
-            renderers[window.id] = ShmRenderer(shm: shm)
-        }
+            // Wayland: create a SHM software renderer using the window's surface.
+            // Real apps would pass window.surface / window.display to wgpu, EGL, or Vulkan.
+            if let shm = eventLoop.shm {
+                renderers[window.id] = ShmRenderer(shm: shm)
+            }
         #endif
 
         #if os(Windows)
-        // Follow the system dark/light mode. Uncomment to opt into Mica:
-        // window.drawUnderTitleBar = true
-        // window.backdropStyle = .mica
+            // Follow the system dark/light mode. Uncomment to opt into Mica:
+            // window.drawUnderTitleBar = true
+            // window.backdropStyle = .mica
         #endif
 
         windows[window.id] = window
@@ -104,13 +105,13 @@ final class Demo: EventLoopDelegate {
 
 // MARK: - Entry point
 
-Task {
-    var i = 1
-    while !Task.isCancelled {
-        print(i)
-        try await Task.sleep(for: .milliseconds(300))
-        i += 1
-    }
-}
+// Task {
+//     var i = 1
+//     while !Task.isCancelled {
+//         print(i)
+//         try await Task.sleep(for: .milliseconds(300))
+//         i += 1
+//     }
+// }
 
 EventLoop().run(Demo())

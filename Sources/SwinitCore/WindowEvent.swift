@@ -85,4 +85,6 @@ public enum WindowEvent: Sendable {
     case mouseInput(deviceId: DeviceId, state: ElementState, button: MouseButton)
     case redrawRequested
     case scaleFactorChanged(scaleFactor: Double)
+    case tabletTool(deviceId: DeviceId, event: TabletToolEvent)
+    case touch(event: TouchEvent)
 }

@@ -21,6 +21,7 @@
                 waylandSubcompositor = try? g.bind(to: WlSubcompositor.self, version: 1...1)
                 waylandShm = try? g.bind(to: WlShm.self, version: 1...2)
                 waylandFractionalScaleManager = try? g.bind(to: WpFractionalScaleManagerV1.self, version: 1...1)
+                waylandTabletManager = try? g.bind(to: ZwpTabletManagerV2.self, version: 1...1)
             } catch {
                 fatalError("Failed to bind Wayland globals: \(error)")
             }
@@ -99,8 +100,14 @@
             guard let seat else { return }
             pointer = try? seat.getPointer()
             keyboard = try? seat.getKeyboard()
+            touch = try? seat.getTouch()
             setupPointerEvents()
             setupKeyboardEvents()
+            setupTouchEvents()
+            if let manager = waylandTabletManager {
+                waylandTabletSeat = try? manager.getTabletSeat(seat: seat)
+                setupTabletEvents()
+            }
         }
 
         private func setupPointerEvents() {
@@ -247,6 +254,113 @@
                     if let win = keyboardWindow {
                         win.dispatch(.modifiersChanged(currentModifiers))
                     }
+                default: break
+                }
+            }
+        }
+
+        private func setupTouchEvents() {
+            touch?.onEvent = { [weak self] event in
+                guard let self else { return }
+                switch event {
+                case .down(_, let time, let surface, let id, let x, let y):
+                    guard let surface, let win = findWindow(bySurfaceId: surface.id) else { return }
+                    win.dispatch(.touch(event: .down(TouchPoint(id: id, x: x, y: y, time: time))))
+                case .up(_, let time, let id):
+                    // Touch up doesn't carry a surface; deliver to last-known window via id.
+                    // For simplicity deliver to any window that is tracking this touch id.
+                    for win in windows.values {
+                        win.dispatch(.touch(event: .up(id: id, time: time)))
+                    }
+                case .motion(let time, let id, let x, let y):
+                    for win in windows.values {
+                        win.dispatch(.touch(event: .moved(TouchPoint(id: id, x: x, y: y, time: time))))
+                    }
+                case .frame:
+                    for win in windows.values { win.dispatch(.touch(event: .frame)) }
+                case .cancel:
+                    for win in windows.values { win.dispatch(.touch(event: .cancelled)) }
+                default: break
+                }
+            }
+        }
+
+        private func setupTabletEvents() {
+            waylandTabletSeat?.onEvent = { [weak self] event in
+                guard let self, case .toolAdded(let tool) = event else { return }
+                setupTabletTool(tool)
+            }
+        }
+
+        private func setupTabletTool(_ tool: ZwpTabletToolV2) {
+            var toolType = TabletToolType.unknown
+            var frame = TabletToolFrame()
+            var currentSurface: WlSurface? = nil
+            var pendingProximityIn: TabletToolType? = nil
+            var pendingProximityOut = false
+            var pendingDown = false
+            var pendingUp = false
+            var pendingButtons: [(id: UInt32, pressed: Bool)] = []
+
+            tool.onEvent = { [weak self] event in
+                guard let self else { return }
+                switch event {
+                case .type(let t):
+                    toolType = TabletToolType(from: t)
+                case .proximityIn(_, _, let surface):
+                    currentSurface = surface
+                    pendingProximityIn = toolType
+                case .proximityOut:
+                    pendingProximityOut = true
+                case .down:
+                    pendingDown = true
+                case .up:
+                    pendingUp = true
+                case .motion(let x, let y):
+                    frame.x = x; frame.y = y
+                case .pressure(let p):
+                    frame.pressure = Double(p) / 65535.0
+                case .distance(let d):
+                    frame.distance = Double(d) / 65535.0
+                case .tilt(let tx, let ty):
+                    frame.tiltX = tx; frame.tiltY = ty
+                case .rotation(let deg):
+                    frame.rotation = deg
+                case .button(_, let id, let state):
+                    pendingButtons.append((id: id, pressed: state == .pressed))
+                case .frame(let time):
+                    frame.time = time
+                    guard let surface = currentSurface,
+                          let win = findWindow(bySurfaceId: surface.id) else {
+                        if pendingProximityOut {
+                            pendingProximityOut = false
+                            currentSurface = nil
+                        }
+                        pendingProximityIn = nil
+                        pendingDown = false
+                        pendingUp = false
+                        pendingButtons.removeAll()
+                        return
+                    }
+                    let deviceId = DeviceId.placeholder
+                    if let t = pendingProximityIn {
+                        win.dispatch(.tabletTool(deviceId: deviceId, event: .proximityIn(toolType: t)))
+                        pendingProximityIn = nil
+                    }
+                    if pendingDown { win.dispatch(.tabletTool(deviceId: deviceId, event: .down)); pendingDown = false }
+                    if pendingUp  { win.dispatch(.tabletTool(deviceId: deviceId, event: .up));   pendingUp  = false }
+                    for (id, pressed) in pendingButtons {
+                        win.dispatch(.tabletTool(deviceId: deviceId, event: .button(id: id, pressed: pressed)))
+                    }
+                    pendingButtons.removeAll()
+                    win.dispatch(.tabletTool(deviceId: deviceId, event: .frame(frame)))
+                    if pendingProximityOut {
+                        win.dispatch(.tabletTool(deviceId: deviceId, event: .proximityOut))
+                        pendingProximityOut = false
+                        currentSurface = nil
+                    }
+                case .removed:
+                    tool.onEvent = nil
                 default: break
                 }
             }
