@@ -70,7 +70,9 @@ public final class EventLoop {
     var waylandFractionalScaleManager: WpFractionalScaleManagerV1?
     var waylandTabletManager:          ZwpTabletManagerV2?
     var waylandTabletSeat:             ZwpTabletSeatV2?
+    var waylandTablets:                [ZwpTabletV2] = []
     var touch:                         WlTouch?
+    var seatCapabilities:              WlSeat.Capability = []
     #if WaylandCSD
     var csdRouter = CSDInputRouter()
     #endif

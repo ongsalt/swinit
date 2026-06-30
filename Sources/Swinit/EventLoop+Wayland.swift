@@ -31,6 +31,11 @@
                 try? self.xdgWmBase?.pong(serial: serial)
             }
 
+            seat?.onEvent = { [weak self] event in
+                guard let self, case .capabilities(let caps) = event else { return }
+                seatCapabilities = caps
+            }
+
             conn.roundtrip()
             setupInput()
             conn.roundtrip()
@@ -98,9 +103,9 @@
 
         private func setupInput() {
             guard let seat else { return }
-            pointer = try? seat.getPointer()
-            keyboard = try? seat.getKeyboard()
-            touch = try? seat.getTouch()
+            if seatCapabilities.contains(.pointer)  { pointer  = try? seat.getPointer() }
+            if seatCapabilities.contains(.keyboard) { keyboard = try? seat.getKeyboard() }
+            if seatCapabilities.contains(.touch)    { touch    = try? seat.getTouch() }
             setupPointerEvents()
             setupKeyboardEvents()
             setupTouchEvents()
@@ -287,8 +292,16 @@
 
         private func setupTabletEvents() {
             waylandTabletSeat?.onEvent = { [weak self] event in
-                guard let self, case .toolAdded(let tool) = event else { return }
-                setupTabletTool(tool)
+                guard let self else { return }
+                switch event {
+                case .tabletAdded(let tablet):
+                    // Must retain the proxy so libwayland has the object ID registered;
+                    // proximity_in carries it as an argument and will fault without it.
+                    waylandTablets.append(tablet)
+                case .toolAdded(let tool):
+                    setupTabletTool(tool)
+                default: break
+                }
             }
         }
 
