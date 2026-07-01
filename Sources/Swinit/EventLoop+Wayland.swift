@@ -227,29 +227,39 @@
             keyboard?.onEvent = { [weak self] event in
                 guard let self else { return }
                 switch event {
+                case .keymap(let format, let fd, let size):
+                    if format == .xkbV1 {
+                        xkb.loadKeymap(fd: fd, size: Int(size))
+                    }
+
                 case .enter(_, let surface, _):
                     guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         keyboardWindow = win
                         win.dispatch(.focused(true))
                     }
+
                 case .leave(_, let surface):
                     guard let surface else { return }
                     if let win = findWindow(bySurfaceId: surface.id) {
                         win.dispatch(.focused(false))
                     }
                     keyboardWindow = nil
-                case .key(_, _, let key, let state):
-                    if let win = keyboardWindow {
-                        let ev = KeyEvent(
-                            physicalKey: key, logicalKey: key,
-                            state: state == .pressed ? .pressed : .released,
-                            isRepeat: false)
-                        win.dispatch(.modifiersChanged(currentModifiers))
-                        win.dispatch(
-                            .keyboardInput(deviceId: .placeholder, event: ev, isSynthetic: false))
-                    }
-                case .modifiers(_, let depressed, let latched, let locked, _):
+
+                case .key(_, _, let evdev, let state):
+                    guard let win = keyboardWindow else { break }
+                    let pressed = state == .pressed
+                    let (sym, text) = xkb.translate(evdev: evdev)
+                    let ev = KeyEvent(
+                        physicalKey: evdev,
+                        logicalKey: sym,
+                        text: pressed ? text : nil,
+                        state: pressed ? .pressed : .released,
+                        isRepeat: false)
+                    win.dispatch(.keyboardInput(deviceId: .placeholder, event: ev, isSynthetic: false))
+
+                case .modifiers(_, let depressed, let latched, let locked, let group):
+                    xkb.updateMask(depressed: depressed, latched: latched, locked: locked, group: group)
                     let combined = depressed | latched | locked
                     currentModifiers = Modifiers(
                         shift: combined & 1 != 0,
@@ -259,6 +269,7 @@
                     if let win = keyboardWindow {
                         win.dispatch(.modifiersChanged(currentModifiers))
                     }
+
                 default: break
                 }
             }

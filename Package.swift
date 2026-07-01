@@ -24,6 +24,12 @@ let package = Package(
             providers: [.apt(["libcairo2-dev"]), .brew(["cairo"])],
         ),
 
+        .systemLibrary(
+            name: "CXkbCommon",
+            pkgConfig: "xkbcommon",
+            providers: [.apt(["libxkbcommon-dev"])],
+        ),
+
         .target(
             name: "SwinitWin32",
             dependencies: [
@@ -52,6 +58,7 @@ let package = Package(
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux])),
                 .product(name: "WaylandClient", package: "SwiftWayland",
                          condition: .when(platforms: [.linux])),
+                .byName(name: "CXkbCommon", condition: .when(platforms: [.linux])),
             ],
         ),
         .testTarget(

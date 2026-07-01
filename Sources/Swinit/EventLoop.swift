@@ -73,6 +73,7 @@ public final class EventLoop {
     var waylandTablets:                [ZwpTabletV2] = []
     var touch:                         WlTouch?
     var seatCapabilities:              WlSeat.Capability = []
+    var xkb:                           XKBState = XKBState()
     #if WaylandCSD
     var csdRouter = CSDInputRouter()
     #endif
