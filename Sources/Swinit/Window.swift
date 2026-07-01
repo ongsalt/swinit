@@ -37,6 +37,7 @@ public final class Window {
     var pendingFrameCallback = false
     var fractionalScale: WpFractionalScaleV1?
     var opaqueRegion: Bool
+    var inputRegion: Bool
     #if WaylandCSD
     var csd: CSDLayer?
     #endif
@@ -53,6 +54,7 @@ public final class Window {
         self._size        = attributes.size
         self.decoMode     = attributes.decorations
         self.opaqueRegion = attributes.opaqueRegion
+        self.inputRegion  = attributes.inputRegion
         try? toplevel.setTitle(attributes.title)
         setupCallbacks()
         setupDecorations()
