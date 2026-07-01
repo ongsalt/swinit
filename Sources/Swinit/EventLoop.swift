@@ -57,7 +57,7 @@ public final class EventLoop {
     // MARK: Platform stored properties — implementations in EventLoop+<Platform>.swift
 
 #if os(Linux)
-    var connection: Connection?
+    public var connection: Connection?
     var connectionWatch: WaylandClient.Watch? = nil
     var xdgWmBase:            XdgWmBase?
     var seat:                 WlSeat?
@@ -83,7 +83,7 @@ public final class EventLoop {
 
     /// Wayland shared memory allocator — for software rendering.
     public var shm: WlShm? { waylandShm }
-    var waylandDisplay: WlDisplay { connection!.display }
+    public var waylandDisplay: WlDisplay { connection!.display }
 
 #elseif os(Windows)
     package static let tickIntervalMs: UInt32 = 1
