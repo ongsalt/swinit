@@ -17,18 +17,24 @@ public struct WindowAttributes: Sendable {
     public var decorations: DecorationMode
     /// Win32 only: WS_EX_NOREDIRECTIONBITMAP. Ignored on other platforms.
     public var noRedirectionBitmap: Bool
+    /// Wayland only: tell the compositor that the entire surface is opaque. Lets the
+    /// compositor skip blending content underneath. Default true; set false for
+    /// transparent or partially-transparent windows.
+    public var opaqueRegion: Bool
 
     public init(
         title: String = "swinit",
         size: Size = .init(width: 800, height: 600),
         transparency: Bool = false,
         decorations: DecorationMode = .auto,
-        noRedirectionBitmap: Bool = false
+        noRedirectionBitmap: Bool = false,
+        opaqueRegion: Bool = false
     ) {
         self.title = title
         self.size = size
         self.transparency = transparency
         self.decorations = decorations
         self.noRedirectionBitmap = noRedirectionBitmap
+        self.opaqueRegion = opaqueRegion
     }
 }

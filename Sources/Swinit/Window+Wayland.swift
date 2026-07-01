@@ -253,6 +253,14 @@
                     dispatch(.stateChanged(isMaximized ? .maximized : .normal))
                 }
                 if sizeChanged {
+                    if opaqueRegion, let compositor = eventLoop?.waylandCompositor,
+                       let region = try? compositor.createRegion()
+                    {
+                        try? region.add(x: 0, y: 0, width: Int32(_size.width), height: Int32(_size.height))
+                        try? surface.setOpaqueRegion(region: region)
+                        try? surface.setInputRegion(region: region)
+                        try? region.destroy()
+                    }
                     dispatch(.resized(size: _size, isFinal: true))
                 }
 
