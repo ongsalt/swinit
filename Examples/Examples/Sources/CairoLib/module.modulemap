@@ -1,5 +1,0 @@
-module CairoLib [system] {
-    header "shim.h"
-    link "cairo"
-    export *
-}
