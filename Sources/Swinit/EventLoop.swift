@@ -88,5 +88,6 @@ public final class EventLoop {
 
 #elseif os(Windows)
     package static let tickIntervalMs: UInt32 = 1
+    package var shouldQuit = false
 #endif
 }

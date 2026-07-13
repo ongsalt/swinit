@@ -105,13 +105,13 @@ final class Demo: EventLoopDelegate {
 
 // MARK: - Entry point
 
-// Task {
-//     var i = 1
-//     while !Task.isCancelled {
-//         print(i)
-//         try await Task.sleep(for: .milliseconds(300))
-//         i += 1
-//     }
-// }
+Task {
+    var i = 1
+    while !Task.isCancelled {
+        print(i)
+        try await Task.sleep(for: .milliseconds(300))
+        i += 1
+    }
+}
 
 EventLoop().run(Demo())

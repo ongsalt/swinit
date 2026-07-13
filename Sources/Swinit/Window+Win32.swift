@@ -111,7 +111,7 @@
                 return 0
 
             case UINT(WM_TIMER) where currentHeartbeatTimer != nil:
-                RunLoop.main.run(mode: .default, before: .distantPast)
+                _ = RunLoop.main.run(mode: .default, before: .distantPast)
                 return 0
 
             case UINT(WM_EXITSIZEMOVE):
