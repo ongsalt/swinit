@@ -1,4 +1,5 @@
 #if os(Windows)
+    import CDManip
     import SwinitCore
     import WinSDK
     import SwinitWin32
@@ -64,6 +65,48 @@
                     | UInt32(SWP_SHOWWINDOW))
 
             _scaleFactor = Double(GetDpiForWindow(handle)) / 96.0
+
+            setupDirectManipulation(selfPtr: selfPtr)
+        }
+
+        // Touchpad pinch/pan via DirectManipulation. Without this the system
+        // synthesizes touchpad pinch as ctrl + WM_MOUSEWHEEL. Once the viewport
+        // claims a touchpad contact, pan also stops arriving as wheel messages
+        // and is delivered as .panGesture instead.
+        private func setupDirectManipulation(selfPtr: UnsafeMutableRawPointer) {
+            let callbacks = CDManipCallbacks(
+                userData: selfPtr,
+                onPinch: { userData, delta, phase in
+                    guard let userData else { return }
+                    let window = Unmanaged<Window>.fromOpaque(userData).takeUnretainedValue()
+                    MainActor.assumeIsolated {
+                        window.dispatch(
+                            .pinchGesture(
+                                deviceId: .placeholder, delta: delta,
+                                phase: touchPhase(from: phase)))
+                    }
+                },
+                onPan: { userData, dx, dy, phase in
+                    guard let userData else { return }
+                    let window = Unmanaged<Window>.fromOpaque(userData).takeUnretainedValue()
+                    MainActor.assumeIsolated {
+                        window.dispatch(
+                            .panGesture(
+                                deviceId: .placeholder, delta: PhysicalPosition(dx, dy),
+                                phase: touchPhase(from: phase)))
+                    }
+                })
+            dmanip = cdmanip_create(UnsafeMutableRawPointer(handle), callbacks)
+            if dmanip == nil {
+                FileHandle.standardError.write(Data("swinit: DirectManipulation init failed\n".utf8))
+            }
+        }
+
+        private func destroyDirectManipulation() {
+            if let dmanip {
+                cdmanip_destroy(dmanip)
+                self.dmanip = nil
+            }
         }
 
         // MARK: Platform methods
@@ -86,6 +129,7 @@
         }
 
         func platformDestroy() {
+            destroyDirectManipulation()
             SetWindowLongPtrW(handle, GWLP_USERDATA, 0)
             DestroyWindow(handle)
         }
@@ -144,6 +188,7 @@
                 return 0
 
             case UINT(WM_DESTROY):
+                destroyDirectManipulation()
                 return 0
 
             case UINT(WM_SETFOCUS):
@@ -236,6 +281,11 @@
             case UINT(WM_ERASEBKGND):
                 return 1
 
+            case UINT(WM_POINTERUPDATE):
+                print("WM_POINTERUPDATE: \(dmanip)")
+                if let dmanip { cdmanip_pointer_hit_test(dmanip, UInt(wParam)) }
+                return 0
+
             default:
                 return DefWindowProcW(handle, message, wParam, lParam)
             }
@@ -272,6 +322,16 @@
     }
 
     // MARK: - File-private Win32 helpers
+
+    private let DM_POINTERHITTEST: UINT = 0x0318
+
+    private func touchPhase(from phase: CDManipPhase) -> TouchPhase {
+        switch phase {
+        case CDManipPhaseBegan: return .started
+        case CDManipPhaseEnded: return .ended
+        default: return .moved
+        }
+    }
 
     private func getWindow(_ hWnd: HWND) -> Unmanaged<Window>? {
         let ud = UInt(GetWindowLongPtrW(hWnd, Int32(GWLP_USERDATA)))

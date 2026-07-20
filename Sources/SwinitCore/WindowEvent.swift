@@ -87,4 +87,12 @@ public enum WindowEvent: Sendable {
     case scaleFactorChanged(scaleFactor: Double)
     case tabletTool(deviceId: DeviceId, event: TabletToolEvent)
     case touch(event: TouchEvent)
+    /// Touchpad pinch. `delta` is the relative magnification since the last event
+    /// (positive = zoom in), like macOS `magnification`.
+    case pinchGesture(deviceId: DeviceId, delta: Double, phase: TouchPhase)
+    /// Touchpad two-finger pan. `delta` is in physical pixels since the last event.
+    case panGesture(deviceId: DeviceId, delta: PhysicalPosition<Double>, phase: TouchPhase)
+    /// Touchpad rotation. `delta` is in degrees since the last event
+    /// (positive = counterclockwise). Currently never emitted on any backend.
+    case rotationGesture(deviceId: DeviceId, delta: Double, phase: TouchPhase)
 }

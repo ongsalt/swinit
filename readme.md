@@ -40,8 +40,18 @@ enum WindowEvent {
     case mouseInput(deviceId: DeviceId, state: ElementState, button: MouseButton)
     case redrawRequested
     case scaleFactorChanged(scaleFactor: Double)
+    case tabletTool(deviceId: DeviceId, event: TabletToolEvent)
+    case touch(event: TouchEvent)
+    case pinchGesture(deviceId: DeviceId, delta: Double, phase: TouchPhase)
+    case panGesture(deviceId: DeviceId, delta: PhysicalPosition<Double>, phase: TouchPhase)
+    case rotationGesture(deviceId: DeviceId, delta: Double, phase: TouchPhase)
 }
 ```
+
+## Touchpad Gestures
+
+- **Win32**: uses DirectManipulation. Precision-touchpad pinch arrives as `.pinchGesture` (`delta` = relative magnification since the last event, macOS-style) instead of the synthesized ctrl + `WM_MOUSEWHEEL`. Two-finger scroll arrives as `.panGesture` (pixel deltas, with inertia) instead of `.mouseWheel`. External mouse wheels still deliver `.mouseWheel`. `.rotationGesture` is never emitted (DirectManipulation has no rotation).
+- **Wayland**: not implemented yet (`zwp_pointer_gestures_v1` planned); touchpad scroll still arrives as `.mouseWheel`.
 
 ## DPI / Scale Factor
 

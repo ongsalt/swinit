@@ -70,6 +70,7 @@ public final class Window {
     var isResizing = false
     var currentHeartbeatTimer: UInt64?
     var _pendingRedraw = false
+    var dmanip: OpaquePointer?  // CDManipController* (touchpad gestures)
 
     init(id: WindowId, eventLoop: EventLoop, attributes: WindowAttributes) {
         self.id        = id

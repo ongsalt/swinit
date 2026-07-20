@@ -37,6 +37,16 @@ let package = Package(
             ]
         ),
 
+        // DirectManipulation wrapper (COM, so C++). Compiles to an empty object on
+        // non-Windows platforms via #ifdef _WIN32.
+        .target(
+            name: "CDManip",
+            linkerSettings: [
+                .linkedLibrary("ole32", .when(platforms: [.windows])),
+                .linkedLibrary("user32", .when(platforms: [.windows])),
+            ]
+        ),
+
         .target(
             name: "SwinitWayland",
             dependencies: [
@@ -55,6 +65,7 @@ let package = Package(
             dependencies: [
                 "SwinitCore",
                 .byName(name: "SwinitWin32", condition: .when(platforms: [.windows])),
+                .byName(name: "CDManip", condition: .when(platforms: [.windows])),
                 .byName(name: "SwinitWayland", condition: .when(platforms: [.linux])),
                 .product(name: "WaylandClient", package: "SwiftWayland",
                          condition: .when(platforms: [.linux])),
@@ -65,5 +76,6 @@ let package = Package(
             name: "swinitTests",
             dependencies: ["Swinit"]
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )
